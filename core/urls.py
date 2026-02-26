@@ -4,4 +4,5 @@ from . import views
 urlpatterns = [
     path('', views.home, name='home'),
     path('cadastrar/', views.cadastrar_funcionario, name='cadastrar_funcionario'),
+    path('gerenciar/', views.listar_funcionarios, name='listar_funcionarios'), # Nova rota!
 ]

@@ -1,0 +1,57 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Gerenciar Funcionários</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        /* Estilo simples para a tabela ficar bonita */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+        th { background-color: #e0e0e0; }
+    </style>
+</head>
+<body>
+    <div class="card" style="max-width: 800px;">
+        <div class="card-header">
+            Gerenciar Funcionários
+        </div>
+        <div class="card-body">
+
+            <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none;">
+                <button class="btn btn-primary" style="margin-bottom: 20px;">+ Cadastrar Novo Funcionário</button>
+            </a>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Matrícula</th>
+                        <th>Nome Completo</th>
+                        <th>PIS</th>
+                        <th>CPF</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for func in funcionarios %}
+                    <tr>
+                        <td>{{ func.matricula }}</td>
+                        <td>{{ func.nome_completo }}</td>
+                        <td>{{ func.pis }}</td>
+                        <td>{{ func.cpf }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align: center;">Nenhum funcionário cadastrado ainda.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <a href="{% url 'home' %}" style="text-decoration: none;">
+                <button class="btn btn-secondary" style="margin-top: 20px;">Voltar para o Início</button>
+            </a>
+        </div>
+    </div>
+</body>
+</html>
