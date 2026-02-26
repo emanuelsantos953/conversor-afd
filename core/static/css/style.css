@@ -1,0 +1,99 @@
+/* Reset básico */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Roboto', 'Segoe UI', sans-serif;
+    background-color: #f3f4f6; /* Fundo cinza bem claro */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    color: #333;
+}
+
+/* O "Card" principal que vai segurar o conteúdo */
+.card {
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    max-width: 500px;
+    overflow: hidden;
+}
+
+/* Cabeçalho Teal (Azul do Django) com texto Amarelo Creme */
+.card-header {
+    background-color: #417690; 
+    color: #f5dd5d; 
+    padding: 20px;
+    text-align: center;
+    font-size: 20px;
+    font-weight: 500;
+}
+
+/* Corpo do Card */
+.card-body {
+    padding: 30px;
+}
+
+.card-body p {
+    margin-bottom: 20px;
+    color: #555;
+    line-height: 1.5;
+}
+
+/* Estilo para os campos de formulário gerados pelo Django */
+.card-body p label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #444;
+}
+
+.card-body input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+/* Botões */
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.btn-primary {
+    background-color: #417690;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #315a6e;
+}
+
+.btn-secondary {
+    background-color: #e0e0e0;
+    color: #333;
+    margin-top: 10px;
+}
+
+.btn-secondary:hover {
+    background-color: #d0d0d0;
+}
