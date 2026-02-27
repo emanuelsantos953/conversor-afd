@@ -9,3 +9,26 @@ class Funcionario(models.Model):
 
     def __str__(self):
         return f"{self.matricula} - {self.nome_completo}"
+
+class RegistroPonto(models.Model):
+    # Relaciona o ponto ao funcionário (Se o funcionário for apagado, os pontos dele também são)
+    funcionario = models.ForeignKey(Funcionario, on_delete=models.CASCADE)
+
+    # Data e Dia da Semana
+    data = models.DateField()
+    dia_semana = models.CharField(max_length=15) # Ex: 'seg', 'ter', 'qua'
+
+    # Batidas (null=True e blank=True permitem que o campo fique vazio caso ele não bata o ponto)
+    entrada_1 = models.TimeField(null=True, blank=True)
+    saida_1 = models.TimeField(null=True, blank=True)
+    entrada_2 = models.TimeField(null=True, blank=True)
+    saida_2 = models.TimeField(null=True, blank=True)
+    entrada_3 = models.TimeField(null=True, blank=True)
+    saida_3 = models.TimeField(null=True, blank=True)
+
+    class Meta:
+        # Garante que um funcionário não tenha duas linhas da mesma data
+        unique_together = ('funcionario', 'data')
+
+    def __str__(self):
+        return f"{self.funcionario.nome_completo} - {self.data}"

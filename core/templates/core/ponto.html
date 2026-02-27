@@ -1,0 +1,137 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Espelho de Ponto</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        .container { max-width: 1000px; margin: 20px auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
+        th, td { border: 1px solid #ccc; padding: 5px; text-align: center; font-size: 14px; }
+        th { background-color: #e0e0e0; }
+        
+        input[type="time"] { border: 1px solid transparent; width: 100%; padding: 4px; text-align: center; background: transparent; cursor: pointer; }
+        input[type="time"]:focus { border: 1px solid #ff8c00; background-color: #ffb74d; outline: none; }
+        
+        .fim-de-semana { background-color: #fcf8e3; }
+        .domingo { color: red; font-weight: bold; }
+        
+        .filtros { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 4px; border: 1px solid #ddd; }
+        .filtros select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
+        
+        /* Estilo do botão de salvar */
+        .btn-salvar { background: none; border: none; cursor: pointer; font-size: 18px; transition: transform 0.2s; }
+        .btn-salvar:hover { transform: scale(1.2); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="color: #417690; margin-bottom: 5px;">Espelho de Ponto: {{ funcionario.nome_completo }}</h2>
+        <p style="color: #555; margin-bottom: 20px;">Matrícula: {{ funcionario.matricula }} | PIS: {{ funcionario.pis }}</p>
+
+        <input type="hidden" id="funcionario_id" value="{{ funcionario.id }}">
+        {% csrf_token %}
+
+        <form method="GET" class="filtros">
+            <label for="mes"><strong>Mês:</strong></label>
+            <select name="mes" id="mes">
+                {% for m in meses %}
+                    <option value="{{ m }}" {% if m == mes_selecionado %}selected{% endif %}>{{ m|stringformat:"02d" }}</option>
+                {% endfor %}
+            </select>
+            <label for="ano"><strong>Ano:</strong></label>
+            <select name="ano" id="ano">
+                {% for a in anos %}
+                    <option value="{{ a }}" {% if a == ano_selecionado %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary" style="margin-bottom: 0; width: auto;">Atualizar Tabela</button>
+            <a href="{% url 'listar_funcionarios' %}" class="btn btn-secondary" style="margin-bottom: 0; margin-top: 0; width: auto; margin-left: auto;">Voltar</a>
+        </form>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Dia</th>
+                    <th>Entrada 1</th>
+                    <th>Saída 1</th>
+                    <th>Entrada 2</th>
+                    <th>Saída 2</th>
+                    <th>Entrada 3</th>
+                    <th>Saída 3</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dia in dias_do_mes %}
+                <tr data-data="{{ dia.data_iso }}" data-diasemana="{{ dia.dia_semana }}" class="{% if dia.dia_semana == 'sáb' or dia.dia_semana == 'dom' %}fim-de-semana{% endif %}">
+                    <td>{{ dia.data_formatada }}</td>
+                    <td class="{% if dia.dia_semana == 'dom' %}domingo{% endif %}">{{ dia.dia_semana }}</td>
+                    
+                    <td><input type="time" class="e1" value="{{ dia.registro.entrada_1|time:'H:i'|default_if_none:'' }}"></td>
+                    <td><input type="time" class="s1" value="{{ dia.registro.saida_1|time:'H:i'|default_if_none:'' }}"></td>
+                    <td><input type="time" class="e2" value="{{ dia.registro.entrada_2|time:'H:i'|default_if_none:'' }}"></td>
+                    <td><input type="time" class="s2" value="{{ dia.registro.saida_2|time:'H:i'|default_if_none:'' }}"></td>
+                    <td><input type="time" class="e3" value="{{ dia.registro.entrada_3|time:'H:i'|default_if_none:'' }}"></td>
+                    <td><input type="time" class="s3" value="{{ dia.registro.saida_3|time:'H:i'|default_if_none:'' }}"></td>
+                    
+                    <td><button class="btn-salvar" onclick="salvarLinha(this)" title="Salvar Ponto">💾</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function salvarLinha(botao) {
+            // Pega a linha (<tr>) em que o botão foi clicado
+            const tr = botao.closest('tr');
+            
+            // Reúne todos os dados daquela linha
+            const payload = {
+                funcionario_id: document.getElementById('funcionario_id').value,
+                data: tr.getAttribute('data-data'),
+                dia_semana: tr.getAttribute('data-diasemana'),
+                e1: tr.querySelector('.e1').value,
+                s1: tr.querySelector('.s1').value,
+                e2: tr.querySelector('.e2').value,
+                s2: tr.querySelector('.s2').value,
+                e3: tr.querySelector('.e3').value,
+                s3: tr.querySelector('.s3').value
+            };
+
+            // Pega o token de segurança do Django
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            // Muda o ícone para dar feedback ao usuário
+            botao.innerHTML = '⏳';
+
+            // Envia para o servidor
+            fetch('/ponto/salvar/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    botao.innerHTML = '✅'; // Sucesso!
+                    setTimeout(() => botao.innerHTML = '💾', 2000); // Volta ao normal após 2 seg
+                } else {
+                    alert("Erro ao salvar: " + data.mensagem);
+                    botao.innerHTML = '❌';
+                }
+            })
+            .catch(error => {
+                alert("Erro de conexão.");
+                botao.innerHTML = '❌';
+            });
+        }
+    </script>
+</body>
+</html>
