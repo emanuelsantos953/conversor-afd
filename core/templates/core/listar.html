@@ -19,9 +19,14 @@
         </div>
         <div class="card-body">
 
-            <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none;">
-                <button class="btn btn-primary" style="margin-bottom: 20px;">+ Cadastrar Novo Funcionário</button>
-            </a>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+    <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none; flex: 1;">
+        <button class="btn btn-primary" style="margin-bottom: 0;">+ Cadastrar Novo</button>
+    </a>
+    <a href="{% url 'importar_funcionarios' %}" style="text-decoration: none; flex: 1;">
+        <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c;">↑ Importar Arquivo</button>
+    </a>
+         </div>
 
             <table>
                 <thead>

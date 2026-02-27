@@ -1,0 +1,32 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Importar Funcionários</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="card">
+        <div class="card-header">
+            Carregar Dados dos Funcionários
+        </div>
+        <div class="card-body">
+            <p style="text-align: center;">Para começar, precisamos criar um banco de dados local. Envie o arquivo de texto com os dados dos funcionários.</p>
+
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <label for="arquivo" style="display: block; margin-bottom: 10px; font-weight: bold; color: #555;">Arquivo de Funcionários (.txt ou .csv)</label>
+
+                <input type="file" name="arquivo" id="arquivo" accept=".txt,.csv" required style="margin-bottom: 20px; width: 100%; padding: 10px; border: 2px dashed #417690; border-radius: 4px; background-color: #f9f9f9;">
+
+                <button type="submit" class="btn btn-primary">Criar Banco de Dados Local</button>
+            </form>
+
+            <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
+                <button class="btn btn-secondary">Voltar para o Gerenciamento</button>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

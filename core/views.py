@@ -15,7 +15,12 @@ def cadastrar_funcionario(request):
         form = FuncionarioForm()
     return render(request, 'core/cadastrar.html', {'form': form})
 
-# Nova função para listar!
 def listar_funcionarios(request):
     funcionarios = Funcionario.objects.all() # Busca todos no banco de dados
     return render(request, 'core/listar.html', {'funcionarios': funcionarios})
+
+def importar_funcionarios(request):
+    if request.method == 'POST':
+        # Aqui vai entrar a lógica de ler o arquivo no próximo passo!
+        pass
+    return render(request, 'core/importar.html')
