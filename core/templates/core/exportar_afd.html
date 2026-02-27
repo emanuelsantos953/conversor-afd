@@ -1,0 +1,138 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Exportar AFD</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        .campo-oculto { display: none; margin-top: 15px; }
+        .radio-group { margin-bottom: 20px; display: flex; gap: 15px; }
+        
+        /* Novos estilos para o Autocomplete (Caixa de busca dinâmica) */
+        .autocomplete-container { position: relative; }
+        .autocomplete-resultados {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: white; border: 1px solid #ccc; border-radius: 0 0 4px 4px;
+            max-height: 200px; overflow-y: auto; z-index: 1000; display: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .autocomplete-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
+        .autocomplete-item:hover { background-color: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <div class="card" style="max-width: 600px;">
+        <div class="card-header" style="background-color: #28a745; color: white;">
+            Exportar Arquivo AFD (Legado)
+        </div>
+        <div class="card-body">
+            <p style="text-align: center;">Gere o arquivo de ponto para a Folha de Pagamento.</p>
+            
+            <form method="POST">
+                {% csrf_token %}
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <div style="flex: 1;">
+                        <label for="data_inicio"><strong>Data Início</strong></label>
+                        <input type="date" name="data_inicio" id="data_inicio" required style="width: 100%; padding: 8px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="data_fim"><strong>Data Fim</strong></label>
+                        <input type="date" name="data_fim" id="data_fim" required style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+
+                <label><strong>Filtrar exportação por:</strong></label>
+                <div class="radio-group">
+                    <label><input type="radio" name="tipo_exportacao" value="geral" checked onchange="mostrarFiltro('geral')"> Geral (Todos)</label>
+                    <label><input type="radio" name="tipo_exportacao" value="grupo" onchange="mostrarFiltro('grupo')"> Por Grupo</label>
+                    <label><input type="radio" name="tipo_exportacao" value="funcionario" onchange="mostrarFiltro('funcionario')"> Por Funcionário</label>
+                </div>
+
+                <div id="div_grupo" class="campo-oculto">
+                    <label for="grupo"><strong>Selecione o Grupo:</strong></label>
+                    <select name="grupo" id="grupo" style="width: 100%; padding: 8px;">
+                        <option value="">-- Escolha um Grupo --</option>
+                        {% for g in grupos %}
+                            <option value="{{ g }}">{{ g }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="div_funcionario" class="campo-oculto autocomplete-container">
+                    <label for="busca_nome"><strong>Buscar Funcionário:</strong></label>
+                    <input type="text" id="busca_nome" placeholder="Digite pelo menos 3 letras do nome..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" autocomplete="off">
+                    
+                    <input type="hidden" name="funcionario_id" id="funcionario_id">
+                    
+                    <div id="resultados_busca" class="autocomplete-resultados"></div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="background-color: #28a745; border-color: #28a745; margin-top: 25px; width: 100%; font-size: 16px;">💾 Gerar e Baixar .TXT</button>
+            </form>
+            
+            <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
+                <button class="btn btn-secondary" style="margin-top: 10px; width: 100%;">Voltar</button>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        function mostrarFiltro(tipo) {
+            document.getElementById('div_grupo').style.display = (tipo === 'grupo') ? 'block' : 'none';
+            document.getElementById('div_funcionario').style.display = (tipo === 'funcionario') ? 'block' : 'none';
+        }
+
+        // --- LÓGICA DO AUTOCOMPLETE (AJAX) ---
+        const campoBusca = document.getElementById('busca_nome');
+        const resultadosDiv = document.getElementById('resultados_busca');
+        const campoIdOculto = document.getElementById('funcionario_id');
+
+        campoBusca.addEventListener('input', function() {
+            let query = this.value;
+            
+            // Se tiver menos de 3 letras, esconde os resultados e limpa o ID
+            if (query.length < 3) {
+                resultadosDiv.style.display = 'none';
+                campoIdOculto.value = ''; 
+                return;
+            }
+
+            // Bate na rota de listagem que você já tinha criado
+            fetch(`{% url 'listar_funcionarios' %}?q=${query}`)
+            .then(response => response.json())
+            .then(data => {
+                resultadosDiv.innerHTML = ''; 
+                
+                if (data.funcionarios.length > 0) {
+                    resultadosDiv.style.display = 'block';
+                    data.funcionarios.forEach(func => {
+                        let item = document.createElement('div');
+                        item.className = 'autocomplete-item';
+                        item.innerHTML = `<strong>${func.nome_completo}</strong> <span style="color:#777; font-size:12px;">(Matrícula: ${func.matricula})</span>`;
+                        
+                        // O que acontece quando o usuário clica em um nome da lista
+                        item.onclick = function() {
+                            campoBusca.value = func.nome_completo; // Preenche a caixa com o nome
+                            campoIdOculto.value = func.id;         // Guarda o ID secretamente
+                            resultadosDiv.style.display = 'none';  // Esconde a lista suspensa
+                        };
+                        resultadosDiv.appendChild(item);
+                    });
+                } else {
+                    resultadosDiv.style.display = 'block';
+                    resultadosDiv.innerHTML = '<div class="autocomplete-item" style="color: red;">Nenhum funcionário encontrado.</div>';
+                }
+            });
+        });
+
+        // Esconde a lista suspensa se o usuário clicar fora dela
+        document.addEventListener('click', function(e) {
+            if (e.target !== campoBusca && e.target !== resultadosDiv) {
+                resultadosDiv.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

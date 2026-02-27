@@ -1,8 +1,11 @@
+import pandas as pd
+import csv
+import io
 import json
 from django.shortcuts import render, redirect
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from .forms import FuncionarioForm
-from .models import Funcionario, RegistroPonto
+from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada
 from django.db import IntegrityError
 from datetime import datetime, date
 import calendar
@@ -16,9 +19,13 @@ def cadastrar_funcionario(request):
         form = FuncionarioForm(request.POST)
         if form.is_valid():
             form.save()
-            return redirect('listar_funcionarios') # Agora volta para a lista após salvar
+            return redirect('listar_funcionarios')
     else:
-        form = FuncionarioForm()
+        # Agora ele preenche automático se vier PIS ou Matrícula na URL!
+        pis_pre = request.GET.get('pis', '')
+        matricula_pre = request.GET.get('matricula', '')
+        form = FuncionarioForm(initial={'pis': pis_pre, 'matricula': matricula_pre})
+
     return render(request, 'core/cadastrar.html', {'form': form})
 
 def listar_funcionarios(request):
@@ -167,29 +174,29 @@ def salvar_ponto(request):
 def importar_afd(request):
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
-        # Pega o nome do grupo digitado no formulário
         grupo_ponto = request.POST.get('grupo_ponto')
-        
+
         if arquivo:
             linhas = arquivo.read().decode('utf-8', errors='ignore').splitlines()
             dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
-
-            # Usamos uma lista para anotar quais funcionários já atualizamos o grupo 
-            # nesta importação, assim não sobrecarregamos o banco de dados.
             funcionarios_atualizados = []
+
+            # NOVA LISTA: Guarda os PIS que não existem no banco
+            pis_desconhecidos = set() 
 
             for linha in linhas:
                 linha = linha.strip()
-                if not linha:
-                    continue
-                
-                if linha.startswith('000000000') or len(linha) < 34:
+                if not linha or linha.startswith('000000000') or len(linha) < 34:
                     continue
 
                 if linha[9] == '3':
                     data_txt = linha[10:18]
                     hora_txt = linha[18:22]
                     pis_txt = linha[23:34]
+
+                    # SE O PIS ESTIVER NA LISTA NEGRA, PULA IMEDIATAMENTE!
+                    if PisIgnorado.objects.filter(pis=pis_txt).exists():
+                        continue
 
                     try:
                         data_batida = datetime.strptime(data_txt, '%d%m%Y').date()
@@ -198,16 +205,13 @@ def importar_afd(request):
                         continue
 
                     funcionario = Funcionario.objects.filter(pis=pis_txt).first()
-                    
+
                     if funcionario:
-                        # ===== NOVIDADE: ATUALIZA O GRUPO DO FUNCIONÁRIO =====
                         if grupo_ponto and funcionario.id not in funcionarios_atualizados:
                             funcionario.grupo_ponto = grupo_ponto
-                            funcionario.save() # Salva a mudança no cadastro
-                            funcionarios_atualizados.append(funcionario.id) # Anota que já fez
-                        # =====================================================
+                            funcionario.save()
+                            funcionarios_atualizados.append(funcionario.id)
 
-                        # Cria ou pega o registro do dia
                         registro, created = RegistroPonto.objects.get_or_create(
                             funcionario=funcionario,
                             data=data_batida,
@@ -233,9 +237,242 @@ def importar_afd(request):
                             registro.saida_2 = batidas_existentes[3] if len(batidas_existentes) > 3 else None
                             registro.entrada_3 = batidas_existentes[4] if len(batidas_existentes) > 4 else None
                             registro.saida_3 = batidas_existentes[5] if len(batidas_existentes) > 5 else None
-                            
                             registro.save()
+                    else:
+                        # O PIS NÃO EXISTE E NÃO ESTÁ IGNORADO!
+                        pis_desconhecidos.add(pis_txt)
+
+            # SE ACHOU PIS DESCONHECIDO, DEVOLVE ELES PARA A TELA
+            if pis_desconhecidos:
+                return render(request, 'core/importar_afd.html', {
+                    'alerta_pis': True,
+                    'pis_desconhecidos': list(pis_desconhecidos)
+                })
 
             return redirect('listar_funcionarios')
 
     return render(request, 'core/importar_afd.html')
+
+def exportar_afd(request):
+    if request.method == 'POST':
+        data_inicio = request.POST.get('data_inicio')
+        data_fim = request.POST.get('data_fim')
+        tipo = request.POST.get('tipo_exportacao')
+        
+        # 1. Filtra os registros com base nas datas escolhidas
+        filtros = {}
+        if data_inicio:
+            filtros['data__gte'] = data_inicio
+        if data_fim:
+            filtros['data__lte'] = data_fim
+
+        # 2. Aplica o filtro de Grupo ou Funcionário, se selecionado
+        if tipo == 'grupo':
+            grupo = request.POST.get('grupo')
+            if grupo:
+                filtros['funcionario__grupo_ponto'] = grupo
+        elif tipo == 'funcionario':
+            func_id = request.POST.get('funcionario_id')
+            if func_id:
+                filtros['funcionario__id'] = func_id
+
+        # Faz a busca no banco de dados
+        registros = RegistroPonto.objects.filter(**filtros)
+
+        # 3. Desmonta as batidas diárias em batidas individuais
+        # Cria uma lista de tuplas: (data, hora, pis)
+        batidas = []
+        for reg in registros:
+            pis = reg.funcionario.pis
+            data_batida = reg.data
+            for campo in ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']:
+                hora = getattr(reg, campo)
+                if hora:
+                    batidas.append((data_batida, hora, pis))
+        
+        # 4. Ordena tudo cronologicamente (Primeiro por Data, depois por Hora)
+        batidas.sort(key=lambda x: (x[0], x[1]))
+
+        # 5. Monta o arquivo texto
+        linhas_arquivo = []
+        
+        # Cabeçalho Fixo (exatamente como você mandou)
+        linhas_arquivo.append("00000000011466342180001070000000000000PREFEITURA DE TAQUARITUBA                                                                                                   AYSE090514002025-04-102025-08-01010820250721000020272301072025044801902610592719dc")
+        
+        nsr = 1 # Número Sequencial de Registro
+        for b in batidas:
+            data_str = b[0].strftime('%d%m%Y')
+            hora_str = b[1].strftime('%H%M')
+            pis_str = str(b[2]).zfill(11) # Garante que o PIS tenha 11 dígitos
+            nsr_str = str(nsr).zfill(9)   # Garante que o NSR tenha 9 dígitos
+            
+            # Formata a linha conforme o mapeamento que você fez: NSR + '3' + DATA + HORA + '0' + PIS
+            linha = f"{nsr_str}3{data_str}{hora_str}0{pis_str}"
+            linhas_arquivo.append(linha)
+            nsr += 1
+        
+        # Rodapé Fixo (conforme você mandou)
+        linhas_arquivo.append("99999999900000000000000110300000000000000000009")
+
+        # 6. Prepara a resposta para Download
+        # Usa \r\n para pular linha mantendo a compatibilidade do Bloco de Notas (Windows)
+        conteudo = '\r\n'.join(linhas_arquivo) 
+        
+        response = HttpResponse(conteudo, content_type='text/plain')
+        response['Content-Disposition'] = f'attachment; filename="AFD_Exportado_{data_inicio}_a_{data_fim}.txt"'
+        
+        return response
+
+    # Se for GET (Apenas abrindo a página), pega os dados para o formulário
+    # Busca apenas os grupos que não estão vazios
+    grupos = Funcionario.objects.exclude(grupo_ponto__isnull=True).exclude(grupo_ponto__exact='').values_list('grupo_ponto', flat=True).distinct()
+    funcionarios = Funcionario.objects.all().order_by('nome_completo')
+    
+    return render(request, 'core/exportar_afd.html', {'grupos': grupos, 'funcionarios': funcionarios})
+
+def salvar_grupo(request):
+    if request.method == 'POST':
+        try:
+            # Lê os dados enviados pelo JavaScript
+            dados = json.loads(request.body)
+            funcionario_id = dados.get('funcionario_id')
+            novo_grupo = dados.get('grupo')
+            
+            # Busca o funcionário e atualiza o grupo
+            funcionario = Funcionario.objects.get(id=funcionario_id)
+            
+            # Se a pessoa apagar o texto, salva como None (vazio no banco)
+            funcionario.grupo_ponto = novo_grupo if novo_grupo.strip() else None
+            funcionario.save()
+            
+            return JsonResponse({'status': 'sucesso'})
+        except Exception as e:
+            return JsonResponse({'status': 'erro', 'mensagem': str(e)})
+            
+    return JsonResponse({'status': 'invalido'})
+
+def ignorar_pis(request):
+    if request.method == 'POST':
+        try:
+            dados = json.loads(request.body)
+            pis = dados.get('pis')
+            PisIgnorado.objects.get_or_create(pis=pis)
+            return JsonResponse({'status': 'sucesso'})
+        except Exception as e:
+            return JsonResponse({'status': 'erro'})
+    return JsonResponse({'status': 'invalido'})
+
+def importar_planilha(request):
+    if request.method == 'POST':
+        arquivo = request.FILES.get('arquivo')
+        grupo_ponto = request.POST.get('grupo_ponto')
+        
+        if arquivo:
+            try:
+                # O Pandas é mágico! Ele lê o arquivo direto da memória.
+                # dtype=str garante que ele não apague os zeros à esquerda das matrículas
+                df = pd.read_excel(arquivo, dtype=str)
+                
+            except Exception as e:
+                # Se der erro no Excel, pode ser que o usuário mandou um CSV mesmo. O Pandas lê também!
+                print(f"Tentando ler como CSV... Erro anterior: {e}")
+                arquivo.seek(0)
+                df = pd.read_csv(arquivo, sep=None, engine='python', dtype=str)
+
+            # Limpa espaços em branco dos nomes das colunas
+            df.columns = df.columns.str.strip()
+            
+            # Converte a tabela perfeita em uma lista de dicionários para lermos
+            linhas = df.to_dict('records')
+
+            dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+            funcionarios_atualizados = []
+            matriculas_desconhecidas = set()
+
+            print(f"\n--- INICIANDO IMPORTAÇÃO EXCEL/CSV (Colunas: {list(df.columns)}) ---")
+
+            for linha in linhas:
+                # Pega a Matrícula e Hora e garante que são textos limpos
+                matricula_txt = str(linha.get('ID', '')).strip()
+                hora_completa_txt = str(linha.get('Hora', '')).strip()
+
+                # O Pandas preenche células vazias com a palavra 'nan' (Not a Number), então pulamos elas
+                if not matricula_txt or matricula_txt == 'nan' or not hora_completa_txt or hora_completa_txt == 'nan':
+                    continue
+                    
+                if MatriculaIgnorada.objects.filter(matricula=matricula_txt).exists():
+                    continue
+                    
+                try:
+                    dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M:%S')
+                except ValueError:
+                    try:
+                        dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M')
+                    except ValueError:
+                        print(f"Formato de data inválido ignorado: {hora_completa_txt}")
+                        continue
+                        
+                data_batida = dt_obj.date()
+                hora_batida = dt_obj.time()
+                
+                funcionario = Funcionario.objects.filter(matricula=matricula_txt).first()
+                
+                if funcionario:
+                    print(f"Salvo: {funcionario.nome_completo} - {data_batida} às {hora_batida}")
+                    
+                    if grupo_ponto and funcionario.id not in funcionarios_atualizados:
+                        funcionario.grupo_ponto = grupo_ponto
+                        funcionario.save()
+                        funcionarios_atualizados.append(funcionario.id)
+                        
+                    registro, created = RegistroPonto.objects.get_or_create(
+                        funcionario=funcionario,
+                        data=data_batida,
+                        defaults={'dia_semana': dias_semana_pt[data_batida.weekday()]}
+                    )
+
+                    if registro.editado_manualmente:
+                        continue
+
+                    batidas_existentes = []
+                    for campo in ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']:
+                        hora_salva = getattr(registro, campo)
+                        if hora_salva:
+                            batidas_existentes.append(hora_salva)
+
+                    if hora_batida not in batidas_existentes and len(batidas_existentes) < 6:
+                        batidas_existentes.append(hora_batida)
+                        batidas_existentes.sort()
+
+                        registro.entrada_1 = batidas_existentes[0] if len(batidas_existentes) > 0 else None
+                        registro.saida_1 = batidas_existentes[1] if len(batidas_existentes) > 1 else None
+                        registro.entrada_2 = batidas_existentes[2] if len(batidas_existentes) > 2 else None
+                        registro.saida_2 = batidas_existentes[3] if len(batidas_existentes) > 3 else None
+                        registro.entrada_3 = batidas_existentes[4] if len(batidas_existentes) > 4 else None
+                        registro.saida_3 = batidas_existentes[5] if len(batidas_existentes) > 5 else None
+                        registro.save()
+                else:
+                    matriculas_desconhecidas.add(matricula_txt)
+
+            print("--- FIM DA IMPORTAÇÃO ---\n")
+            
+            if matriculas_desconhecidas:
+                return render(request, 'core/importar_planilha.html', {
+                    'alerta_matricula': True,
+                    'matriculas_desconhecidas': list(matriculas_desconhecidas)
+                })
+
+            return redirect('listar_funcionarios')
+
+    return render(request, 'core/importar_planilha.html')
+
+def ignorar_matricula(request):
+    if request.method == 'POST':
+        try:
+            dados = json.loads(request.body)
+            matricula = dados.get('matricula')
+            MatriculaIgnorada.objects.get_or_create(matricula=matricula)
+            return JsonResponse({'status': 'sucesso'})
+        except Exception as e:
+            return JsonResponse({'status': 'erro'})
+    return JsonResponse({'status': 'invalido'})

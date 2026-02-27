@@ -1,0 +1,83 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Importar Planilha CSV</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="card" style="max-width: 600px; margin: 40px auto;">
+        {% if alerta_matricula %}
+        <div class="card-header" style="background-color: #dc3545; color: white;">
+            ⚠️ Atenção: Matrículas Desconhecidas!
+        </div>
+        <div class="card-body">
+            <p>As batidas foram importadas, mas o arquivo contém Matrículas (IDs) que não estão cadastradas.</p>
+            {% csrf_token %}
+            <ul style="list-style: none; padding: 0;">
+                {% for mat in matriculas_desconhecidas %}
+                <li id="li_{{ mat }}" style="margin-bottom: 10px; padding: 15px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                    <strong>Matrícula: {{ mat }}</strong>
+                    <div style="display: flex; gap: 10px;">
+                        <a href="{% url 'cadastrar_funcionario' %}?matricula={{ mat }}" target="_blank" class="btn btn-primary" style="margin: 0; padding: 5px 10px; font-size: 14px; text-decoration: none;">➕ Cadastrar</a>
+                        <button onclick="ignorarMatricula('{{ mat }}')" class="btn btn-secondary" style="margin: 0; padding: 5px 10px; font-size: 14px; background-color: #6c757d; border: none; cursor: pointer;">🚫 Ignorar Sempre</button>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
+                <button class="btn btn-primary" style="width: 100%; margin-top: 15px;">Concluir e Voltar</button>
+            </a>
+        </div>
+        {% else %}
+        <div class="card-header" style="background-color: #17a2b8; color: white;">
+            Importar Batidas (Planilha CSV)
+        </div>
+        <div class="card-body">
+            <p style="text-align: center;">Envie a planilha exportada do sistema em formato <strong>.CSV</strong>.</p>
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <label for="grupo_ponto" style="font-weight: bold;">Grupo de Ponto (Opcional)</label>
+                <input type="text" name="grupo_ponto" id="grupo_ponto" placeholder="Ex: Escritório..." style="margin-bottom: 20px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+
+                <label for="arquivo" style="font-weight: bold;">Arquivo (.csv)</label>
+                <input type="file" name="arquivo" id="arquivo" accept=".csv, .xls, .xlsx" required style="margin-bottom: 20px; width: 100%; padding: 10px; border: 2px dashed #17a2b8; border-radius: 4px;">
+                <button type="submit" class="btn btn-primary" style="background-color: #17a2b8; border-color: #17a2b8; width: 100%; font-size: 16px;">Processar CSV</button>
+            </form>
+            <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
+                <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;">Cancelar</button>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function ignorarMatricula(mat) {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const itemLista = document.getElementById('li_' + mat);
+            itemLista.style.opacity = '0.5';
+
+            fetch('/ponto/ignorar-matricula/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ matricula: mat })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    itemLista.style.transition = "all 0.5s";
+                    itemLista.style.transform = "translateX(100%)";
+                    setTimeout(() => itemLista.remove(), 500);
+                } else {
+                    alert("Erro ao ignorar.");
+                    itemLista.style.opacity = '1';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -29,6 +29,12 @@
              <a href="{% url 'importar_afd' %}" style="text-decoration: none; flex: 1;">
                  <button class="btn btn-primary" style="margin-bottom: 0; background-color: #ffb74d; color: #333;">⏰ Importar AFD (Ponto)</button>
              </a>
+             <a href="{% url 'importar_planilha' %}" style="text-decoration: none; flex: 1;">
+             <button class="btn btn-primary" style="margin-bottom: 0; background-color: #17a2b8; color: white;">📊 Importar CSV</button>
+             </a>
+             <a href="{% url 'exportar_afd' %}" style="text-decoration: none; flex: 1;">
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #28a745; color: white;">💾 Exportar AFD</button>
+             </a>
          </div>
 
             <input type="text" id="campoBusca" class="search-box" placeholder="Pesquisar funcionário por nome (mínimo 3 letras)...">

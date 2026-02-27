@@ -29,6 +29,11 @@
     <div class="container">
         <h2 style="color: #417690; margin-bottom: 5px;">Espelho de Ponto: {{ funcionario.nome_completo }}</h2>
         <p style="color: #555; margin-bottom: 20px;">Matrícula: {{ funcionario.matricula }} | PIS: {{ funcionario.pis }}</p>
+        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px; background-color: #f9f9f9; padding: 10px; border-radius: 4px; border: 1px solid #ddd;">
+         <label for="grupo_ponto_input" style="font-weight: bold; color: #555; margin: 0;">Grupo de Ponto:</label>
+         <input type="text" id="grupo_ponto_input" value="{{ funcionario.grupo_ponto|default_if_none:'' }}" placeholder="Ex: Operacional, Noturno..." style="padding: 6px; border: 1px solid #ccc; border-radius: 4px; flex: 1; max-width: 300px;">
+         <button onclick="salvarGrupo()" id="btn_salvar_grupo" class="btn btn-primary" style="margin: 0; padding: 6px 12px; width: auto; background-color: #17a2b8; border-color: #17a2b8;">Atualizar Grupo</button>
+     </div>
 
         <input type="hidden" id="funcionario_id" value="{{ funcionario.id }}">
         {% csrf_token %}
@@ -131,6 +136,48 @@
                 botao.innerHTML = '❌';
             });
         }
+            // NOVA FUNÇÃO: Salvar Grupo
+     function salvarGrupo() {
+         const btn = document.getElementById('btn_salvar_grupo');
+         const grupo = document.getElementById('grupo_ponto_input').value;
+         const funcionarioId = document.getElementById('funcionario_id').value;
+         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+         btn.innerHTML = '⏳'; // Feedback visual de carregando
+
+         fetch('/ponto/salvar-grupo/', {
+             method: 'POST',
+             headers: {
+                 'Content-Type': 'application/json',
+                 'X-CSRFToken': csrfToken
+             },
+             body: JSON.stringify({
+                 funcionario_id: funcionarioId,
+                 grupo: grupo
+             })
+         })
+         .then(response => response.json())
+         .then(data => {
+             if (data.status === 'sucesso') {
+                 btn.innerHTML = '✅ Salvo!';
+                 btn.style.backgroundColor = '#28a745';
+                 btn.style.borderColor = '#28a745';
+                 // Volta ao normal depois de 2 segundos
+                 setTimeout(() => {
+                     btn.innerHTML = 'Atualizar Grupo';
+                     btn.style.backgroundColor = '#17a2b8';
+                     btn.style.borderColor = '#17a2b8';
+                 }, 2000);
+             } else {
+                 alert("Erro ao salvar grupo: " + data.mensagem);
+                 btn.innerHTML = 'Atualizar Grupo';
+             }
+         })
+         .catch(error => {
+             alert("Erro de conexão.");
+             btn.innerHTML = 'Atualizar Grupo';
+         });
+     }
     </script>
 </body>
 </html>

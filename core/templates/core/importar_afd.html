@@ -7,7 +7,35 @@
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
-    <div class="card">
+    <div class="card" style="max-width: 600px; margin: 40px auto;">
+        
+        {% if alerta_pis %}
+        <div class="card-header" style="background-color: #dc3545; color: white;">
+            ⚠️ Atenção: PIS Desconhecidos Encontrados!
+        </div>
+        <div class="card-body">
+            <p>As batidas dos funcionários conhecidos foram importadas, mas os relógios enviaram números de PIS que não estão cadastrados no sistema.</p>
+            <p>Escolha o que fazer com cada um (Administradores/Testes devem ser ignorados):</p>
+            
+            {% csrf_token %}
+            <ul style="list-style: none; padding: 0;">
+                {% for pis in pis_desconhecidos %}
+                <li id="li_{{ pis }}" style="margin-bottom: 10px; padding: 15px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                    <strong>PIS: {{ pis }}</strong>
+                    <div style="display: flex; gap: 10px;">
+                        <a href="{% url 'cadastrar_funcionario' %}?pis={{ pis }}" target="_blank" class="btn btn-primary" style="margin: 0; padding: 5px 10px; font-size: 14px; text-decoration: none;">➕ Cadastrar</a>
+                        <button onclick="ignorarPis('{{ pis }}')" class="btn btn-secondary" style="margin: 0; padding: 5px 10px; font-size: 14px; background-color: #6c757d; border: none; cursor: pointer;">🚫 Ignorar Sempre</button>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+
+            <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
+                <button class="btn btn-primary" style="width: 100%; margin-top: 15px;">Concluir Importação e Voltar</button>
+            </a>
+        </div>
+
+        {% else %}
         <div class="card-header" style="background-color: #f5dd5d; color: #417690;">
             Importar Batidas (Arquivo AFD)
         </div>
@@ -15,19 +43,51 @@
             <p style="text-align: center;">Envie o arquivo texto extraído do relógio de ponto.</p>
             <form method="POST" enctype="multipart/form-data">
                 {% csrf_token %}
-
-                <label for="grupo_ponto" style="font-weight: bold;">Nome do Grupo de Ponto (Aplicado a todos no arquivo)</label>
-                <input type="text" name="grupo_ponto" id="grupo_ponto" placeholder="Ex: Operacional, Noturno, Escritório..." required style="margin-bottom: 20px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+                
+                <label for="grupo_ponto" style="font-weight: bold;">Nome do Grupo de Ponto (Opcional)</label>
+                <input type="text" name="grupo_ponto" id="grupo_ponto" placeholder="Ex: Operacional..." style="margin-bottom: 20px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
 
                 <label for="arquivo" style="font-weight: bold;">Arquivo AFD (.txt)</label>
                 <input type="file" name="arquivo" id="arquivo" accept=".txt" required style="margin-bottom: 20px; width: 100%; padding: 10px; border: 2px dashed #f5dd5d; border-radius: 4px;">
-
-                <button type="submit" class="btn btn-primary" style="background-color: #ffb74d; color: #333; font-weight: bold;">Processar Batidas</button>
+                
+                <button type="submit" class="btn btn-primary" style="background-color: #ffb74d; color: #333; font-weight: bold; width: 100%; font-size: 16px;">Processar Batidas</button>
             </form>
             <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
-                <button class="btn btn-secondary">Cancelar</button>
+                <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;">Cancelar</button>
             </a>
         </div>
+        {% endif %}
+
     </div>
+
+    <script>
+        function ignorarPis(pis) {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const itemLista = document.getElementById('li_' + pis);
+            
+            itemLista.style.opacity = '0.5'; // Deixa meio transparente pra mostrar que tá carregando
+
+            fetch('/ponto/ignorar-pis/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ pis: pis })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    // Se deu certo, esconde a linha vermelha com um efeito visual bacana
+                    itemLista.style.transition = "all 0.5s";
+                    itemLista.style.transform = "translateX(100%)";
+                    setTimeout(() => itemLista.remove(), 500);
+                } else {
+                    alert("Erro ao ignorar.");
+                    itemLista.style.opacity = '1';
+                }
+            });
+        }
+    </script>
 </body>
 </html>
