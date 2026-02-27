@@ -6,10 +6,10 @@
     <title>Gerenciar Funcionários</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     <style>
-        /* Estilo simples para a tabela ficar bonita */
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
         th { background-color: #e0e0e0; }
+        .search-box { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
     </style>
 </head>
 <body>
@@ -18,16 +18,18 @@
             Gerenciar Funcionários
         </div>
         <div class="card-body">
-
+            
             <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-    <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none; flex: 1;">
-        <button class="btn btn-primary" style="margin-bottom: 0;">+ Cadastrar Novo</button>
-    </a>
-    <a href="{% url 'importar_funcionarios' %}" style="text-decoration: none; flex: 1;">
-        <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c;">↑ Importar Arquivo</button>
-    </a>
-         </div>
+                <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none; flex: 1;">
+                    <button class="btn btn-primary" style="margin-bottom: 0;">+ Cadastrar Novo</button>
+                </a>
+                <a href="{% url 'importar_funcionarios' %}" style="text-decoration: none; flex: 1;">
+                    <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c;">↑ Importar Arquivo</button>
+                </a>
+            </div>
 
+            <input type="text" id="campoBusca" class="search-box" placeholder="Pesquisar funcionário por nome (mínimo 3 letras)...">
+            
             <table>
                 <thead>
                     <tr>
@@ -37,19 +39,10 @@
                         <th>CPF</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for func in funcionarios %}
+                <tbody id="corpoTabela">
                     <tr>
-                        <td>{{ func.matricula }}</td>
-                        <td>{{ func.nome_completo }}</td>
-                        <td>{{ func.pis }}</td>
-                        <td>{{ func.cpf }}</td>
+                        <td colspan="4" style="text-align: center; color: #777;">Digite pelo menos 3 letras para carregar os dados...</td>
                     </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" style="text-align: center;">Nenhum funcionário cadastrado ainda.</td>
-                    </tr>
-                    {% endfor %}
                 </tbody>
             </table>
 
@@ -58,5 +51,40 @@
             </a>
         </div>
     </div>
+
+    <script>
+        document.getElementById('campoBusca').addEventListener('input', function() {
+            let query = this.value;
+            let tbody = document.getElementById('corpoTabela');
+
+            if (query.length >= 3) {
+                // Faz a chamada em segundo plano para o Python
+                fetch(`{% url 'listar_funcionarios' %}?q=${query}`)
+                .then(response => response.json())
+                .then(data => {
+                    tbody.innerHTML = ''; // Limpa a tabela
+                    
+                    if (data.funcionarios.length > 0) {
+                        // Preenche com os resultados
+                        data.funcionarios.forEach(func => {
+                            tbody.innerHTML += `
+                                <tr>
+                                    <td>${func.matricula}</td>
+                                    <td>${func.nome_completo}</td>
+                                    <td>${func.pis}</td>
+                                    <td>${func.cpf}</td>
+                                </tr>
+                            `;
+                        });
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Nenhum funcionário encontrado com esse nome.</td></tr>';
+                    }
+                });
+            } else {
+                // Se apagar ou tiver menos de 3 letras, esconde tudo novamente
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Digite pelo menos 3 letras para carregar os dados...</td></tr>';
+            }
+        });
+    </script>
 </body>
 </html>
