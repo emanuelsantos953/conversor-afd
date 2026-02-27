@@ -1,0 +1,33 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Importar AFD</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="card">
+        <div class="card-header" style="background-color: #f5dd5d; color: #417690;">
+            Importar Batidas (Arquivo AFD)
+        </div>
+        <div class="card-body">
+            <p style="text-align: center;">Envie o arquivo texto extraído do relógio de ponto.</p>
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <label for="grupo_ponto" style="font-weight: bold;">Nome do Grupo de Ponto (Aplicado a todos no arquivo)</label>
+                <input type="text" name="grupo_ponto" id="grupo_ponto" placeholder="Ex: Operacional, Noturno, Escritório..." required style="margin-bottom: 20px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+
+                <label for="arquivo" style="font-weight: bold;">Arquivo AFD (.txt)</label>
+                <input type="file" name="arquivo" id="arquivo" accept=".txt" required style="margin-bottom: 20px; width: 100%; padding: 10px; border: 2px dashed #f5dd5d; border-radius: 4px;">
+
+                <button type="submit" class="btn btn-primary" style="background-color: #ffb74d; color: #333; font-weight: bold;">Processar Batidas</button>
+            </form>
+            <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
+                <button class="btn btn-secondary">Cancelar</button>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

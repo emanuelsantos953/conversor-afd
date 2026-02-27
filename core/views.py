@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from .forms import FuncionarioForm
 from .models import Funcionario, RegistroPonto
 from django.db import IntegrityError
-from datetime import date
+from datetime import datetime, date
 import calendar
 
 
@@ -40,7 +40,8 @@ def listar_funcionarios(request):
                     'matricula': func.matricula,
                     'nome_completo': func.nome_completo,
                     'pis': func.pis,
-                    'cpf': func.cpf
+                    'cpf': func.cpf,
+                    'grupo': func.grupo_ponto if func.grupo_ponto else 'Sem Grupo'
                 })
             return JsonResponse({'funcionarios': dados})
         else:
@@ -114,7 +115,8 @@ def ver_ponto(request, funcionario_id):
             'data_formatada': data_atual.strftime('%d/%m/%Y'),
             'data_iso': data_atual.strftime('%Y-%m-%d'),
             'dia_semana': dia_semana_str,
-            'registro': registros_dict.get(dia) # Pode ser None se não tiver batida
+            'registro': registros_dict.get(dia),
+            'editado_manualmente': registros_dict.get(dia).editado_manualmente if registros_dict.get(dia) else False
         })
 
     contexto = {
@@ -153,6 +155,7 @@ def salvar_ponto(request):
                     'saida_2': limpar_hora(dados.get('s2')),
                     'entrada_3': limpar_hora(dados.get('e3')),
                     'saida_3': limpar_hora(dados.get('s3')),
+                    'editado_manualmente': True,
                 }
             )
             return JsonResponse({'status': 'sucesso'})
@@ -160,3 +163,79 @@ def salvar_ponto(request):
             return JsonResponse({'status': 'erro', 'mensagem': str(e)})
 
     return JsonResponse({'status': 'invalido'})
+
+def importar_afd(request):
+    if request.method == 'POST':
+        arquivo = request.FILES.get('arquivo')
+        # Pega o nome do grupo digitado no formulário
+        grupo_ponto = request.POST.get('grupo_ponto')
+        
+        if arquivo:
+            linhas = arquivo.read().decode('utf-8', errors='ignore').splitlines()
+            dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+
+            # Usamos uma lista para anotar quais funcionários já atualizamos o grupo 
+            # nesta importação, assim não sobrecarregamos o banco de dados.
+            funcionarios_atualizados = []
+
+            for linha in linhas:
+                linha = linha.strip()
+                if not linha:
+                    continue
+                
+                if linha.startswith('000000000') or len(linha) < 34:
+                    continue
+
+                if linha[9] == '3':
+                    data_txt = linha[10:18]
+                    hora_txt = linha[18:22]
+                    pis_txt = linha[23:34]
+
+                    try:
+                        data_batida = datetime.strptime(data_txt, '%d%m%Y').date()
+                        hora_batida = datetime.strptime(hora_txt, '%H%M').time()
+                    except ValueError:
+                        continue
+
+                    funcionario = Funcionario.objects.filter(pis=pis_txt).first()
+                    
+                    if funcionario:
+                        # ===== NOVIDADE: ATUALIZA O GRUPO DO FUNCIONÁRIO =====
+                        if grupo_ponto and funcionario.id not in funcionarios_atualizados:
+                            funcionario.grupo_ponto = grupo_ponto
+                            funcionario.save() # Salva a mudança no cadastro
+                            funcionarios_atualizados.append(funcionario.id) # Anota que já fez
+                        # =====================================================
+
+                        # Cria ou pega o registro do dia
+                        registro, created = RegistroPonto.objects.get_or_create(
+                            funcionario=funcionario,
+                            data=data_batida,
+                            defaults={'dia_semana': dias_semana_pt[data_batida.weekday()]}
+                        )
+
+                        if registro.editado_manualmente:
+                            continue
+
+                        batidas_existentes = []
+                        for campo in ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']:
+                            hora_salva = getattr(registro, campo)
+                            if hora_salva:
+                                batidas_existentes.append(hora_salva)
+
+                        if hora_batida not in batidas_existentes and len(batidas_existentes) < 6:
+                            batidas_existentes.append(hora_batida)
+                            batidas_existentes.sort()
+
+                            registro.entrada_1 = batidas_existentes[0] if len(batidas_existentes) > 0 else None
+                            registro.saida_1 = batidas_existentes[1] if len(batidas_existentes) > 1 else None
+                            registro.entrada_2 = batidas_existentes[2] if len(batidas_existentes) > 2 else None
+                            registro.saida_2 = batidas_existentes[3] if len(batidas_existentes) > 3 else None
+                            registro.entrada_3 = batidas_existentes[4] if len(batidas_existentes) > 4 else None
+                            registro.saida_3 = batidas_existentes[5] if len(batidas_existentes) > 5 else None
+                            
+                            registro.save()
+
+            return redirect('listar_funcionarios')
+
+    return render(request, 'core/importar_afd.html')

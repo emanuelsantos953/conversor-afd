@@ -20,13 +20,16 @@
         <div class="card-body">
             
             <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none; flex: 1;">
-                    <button class="btn btn-primary" style="margin-bottom: 0;">+ Cadastrar Novo</button>
-                </a>
-                <a href="{% url 'importar_funcionarios' %}" style="text-decoration: none; flex: 1;">
-                    <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c;">↑ Importar Arquivo</button>
-                </a>
-            </div>
+             <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none; flex: 1;">
+                 <button class="btn btn-primary" style="margin-bottom: 0;">+ Cadastrar Novo</button>
+             </a>
+             <a href="{% url 'importar_funcionarios' %}" style="text-decoration: none; flex: 1;">
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c;">↑ Importar Funcionários</button>
+             </a>
+             <a href="{% url 'importar_afd' %}" style="text-decoration: none; flex: 1;">
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #ffb74d; color: #333;">⏰ Importar AFD (Ponto)</button>
+             </a>
+         </div>
 
             <input type="text" id="campoBusca" class="search-box" placeholder="Pesquisar funcionário por nome (mínimo 3 letras)...">
             
@@ -35,6 +38,7 @@
                     <tr>
                         <th>Matrícula</th>
                         <th>Nome Completo</th>
+                        <th>Grupo</th>
                         <th>PIS</th>
                         <th>CPF</th>
                     </tr>
@@ -71,6 +75,7 @@
                                 <tr>
                                     <td>${func.matricula}</td>
                                     <td><a href="/ponto/${func.id}/" style="color: #417690; font-weight: bold; text-decoration: underline;">${func.nome_completo}</a></td>
+                                    <td><span style="background-color: #e0e0e0; padding: 2px 6px; border-radius: 4px; font-size: 12px;">${func.grupo}</span></td>
                                     <td>${func.pis}</td>
                                     <td>${func.cpf}</td>
                                 </tr>

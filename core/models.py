@@ -5,6 +5,7 @@ class Funcionario(models.Model):
     nome_completo = models.CharField(max_length=255)
     pis = models.CharField(max_length=11, unique=True)
     cpf = models.CharField(max_length=11, unique=True)
+    grupo_ponto = models.CharField(max_length=50, blank=True, null=True)
     data_cadastro = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -25,6 +26,7 @@ class RegistroPonto(models.Model):
     saida_2 = models.TimeField(null=True, blank=True)
     entrada_3 = models.TimeField(null=True, blank=True)
     saida_3 = models.TimeField(null=True, blank=True)
+    editado_manualmente = models.BooleanField(default=False)
 
     class Meta:
         # Garante que um funcionário não tenha duas linhas da mesma data

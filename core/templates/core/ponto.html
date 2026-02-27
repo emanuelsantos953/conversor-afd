@@ -67,7 +67,7 @@
             <tbody>
                 {% for dia in dias_do_mes %}
                 <tr data-data="{{ dia.data_iso }}" data-diasemana="{{ dia.dia_semana }}" class="{% if dia.dia_semana == 'sáb' or dia.dia_semana == 'dom' %}fim-de-semana{% endif %}">
-                    <td>{{ dia.data_formatada }}</td>
+                    <td>{{ dia.data_formatada }} {% if dia.editado_manualmente %}<span title="Editado Manualmente" style="cursor:help;">✍️</span>{% endif %}</td>
                     <td class="{% if dia.dia_semana == 'dom' %}domingo{% endif %}">{{ dia.dia_semana }}</td>
                     
                     <td><input type="time" class="e1" value="{{ dia.registro.entrada_1|time:'H:i'|default_if_none:'' }}"></td>
@@ -76,7 +76,6 @@
                     <td><input type="time" class="s2" value="{{ dia.registro.saida_2|time:'H:i'|default_if_none:'' }}"></td>
                     <td><input type="time" class="e3" value="{{ dia.registro.entrada_3|time:'H:i'|default_if_none:'' }}"></td>
                     <td><input type="time" class="s3" value="{{ dia.registro.saida_3|time:'H:i'|default_if_none:'' }}"></td>
-                    
                     <td><button class="btn-salvar" onclick="salvarLinha(this)" title="Salvar Ponto">💾</button></td>
                 </tr>
                 {% endfor %}
