@@ -1,22 +1,79 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Início - Sistema AFD</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Início</title>
+    <style>
+        body {
+            /* O Branco Google não é #FFFFFF puro, é um cinza quase imperceptível para não cansar a vista, 
+               mas parece branco. Se quiser branco puro, use #ffffff */
+            background-color: #ffffff; 
+            font-family: 'Roboto', arial, sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Estilo base dos botões (Google Material Design) */
+        .btn {
+            width: 220px;
+            height: 48px;
+            margin: 8px 0; /* Espaçamento vertical entre eles */
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s, box-shadow 0.2s;
+            border: none;
+            letter-spacing: 0.25px;
+        }
+
+        /* Botão Principal (Azul Google) */
+        .btn-primary {
+            background-color: #1a73e8;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #1557b0;
+            box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+        }
+
+        /* Botão Secundário (Cinza Claro - Estilo "Estou com Sorte") */
+        .btn-secondary {
+            background-color: #f8f9fa;
+            color: #3c4043;
+            border: 1px solid #f8f9fa; /* Borda invisível para alinhar tamanho */
+        }
+        .btn-secondary:hover {
+            background-color: #e8eaed;
+            color: #202124;
+            border-color: #dadce0;
+        }
+
+        /* Reset para o form não atrapalhar o layout */
+        form { margin: 0; padding: 0; }
+    </style>
 </head>
 <body>
-    <div class="card">
-        <div class="card-header">
-            Sistema de Gerenciamento AFD
-        </div>
-        <div class="card-body">
-            <p style="text-align: center;">Bem-vindo! Escolha uma opção para iniciar.</p>
-            <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
-                <button class="btn btn-primary">Gerenciar Funcionários</button>
-            </a>
-        </div>
-    </div>
+
+    <a href="{% url 'listar_funcionarios' %}" class="btn btn-primary">
+        Gerenciar AFD
+    </a>
+
+    <form action="{% url 'logout' %}" method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary">
+            Logout
+        </button>
+    </form>
+
 </body>
 </html>

@@ -127,3 +127,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Para onde ir depois do login? (Para a lista de funcionários)
+LOGIN_REDIRECT_URL = '/'
+
+# Para onde ir se alguém tentar acessar uma página proibida? (Para o login)
+LOGIN_URL = '/login/'

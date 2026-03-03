@@ -3,6 +3,7 @@ import csv
 import io
 import json
 import time # Para dar um efeito visual (opcional)
+from django.contrib.auth.decorators import login_required
 from django.http import StreamingHttpResponse
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
@@ -13,9 +14,11 @@ from datetime import datetime, date
 import calendar
 
 
+@login_required
 def home(request):
     return render(request, 'core/home.html')
 
+@login_required
 def cadastrar_funcionario(request):
     if request.method == 'POST':
         form = FuncionarioForm(request.POST)
@@ -30,6 +33,7 @@ def cadastrar_funcionario(request):
 
     return render(request, 'core/cadastrar.html', {'form': form})
 
+@login_required
 def listar_funcionarios(request):
     # Se a requisição tiver um parâmetro 'q' (que será enviado pelo JavaScript)
     if 'q' in request.GET:
@@ -59,6 +63,7 @@ def listar_funcionarios(request):
     # Se não for uma busca, apenas carrega a página vazia
     return render(request, 'core/listar.html')
 
+@login_required
 def importar_funcionarios(request):
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
@@ -92,6 +97,7 @@ def importar_funcionarios(request):
 
     return render(request, 'core/importar.html')
 
+@login_required
 def ver_ponto(request, funcionario_id):
     funcionario = Funcionario.objects.get(id=funcionario_id)
 
@@ -138,6 +144,7 @@ def ver_ponto(request, funcionario_id):
     }
     return render(request, 'core/ponto.html', contexto)
 
+@login_required
 def salvar_ponto(request):
     if request.method == 'POST':
         try:
@@ -173,6 +180,7 @@ def salvar_ponto(request):
 
     return JsonResponse({'status': 'invalido'})
 
+@login_required
 def importar_afd(request):
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
@@ -327,6 +335,7 @@ def importar_afd(request):
 
     return render(request, 'core/importar_afd.html')
 
+@login_required
 def exportar_afd(request):
     if request.method == 'POST':
         data_inicio = request.POST.get('data_inicio')
@@ -404,6 +413,7 @@ def exportar_afd(request):
     
     return render(request, 'core/exportar_afd.html', {'grupos': grupos, 'funcionarios': funcionarios})
 
+@login_required
 def salvar_grupo(request):
     if request.method == 'POST':
         try:
@@ -425,6 +435,7 @@ def salvar_grupo(request):
             
     return JsonResponse({'status': 'invalido'})
 
+@login_required
 def ignorar_pis(request):
     if request.method == 'POST':
         try:
@@ -436,6 +447,7 @@ def ignorar_pis(request):
             return JsonResponse({'status': 'erro'})
     return JsonResponse({'status': 'invalido'})
 
+@login_required
 def importar_planilha(request):
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
@@ -540,6 +552,7 @@ def importar_planilha(request):
 
     return render(request, 'core/importar_planilha.html')
 
+@login_required
 def ignorar_matricula(request):
     if request.method == 'POST':
         try:
