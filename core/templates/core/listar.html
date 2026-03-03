@@ -27,10 +27,10 @@
                  <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c;">↑ Importar Funcionários</button>
              </a>
              <a href="{% url 'importar_afd' %}" style="text-decoration: none; flex: 1;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #ffb74d; color: #333;">⏰ Importar AFD (Ponto)</button>
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #ffb74d; color: #333;">⏰ Importar AFD</button>
              </a>
              <a href="{% url 'importar_planilha' %}" style="text-decoration: none; flex: 1;">
-             <button class="btn btn-primary" style="margin-bottom: 0; background-color: #17a2b8; color: white;">📊 Importar CSV</button>
+             <button class="btn btn-primary" style="margin-bottom: 0; background-color: #17a2b8; color: white;">📊 Importar XLS</button>
              </a>
              <a href="{% url 'exportar_afd' %}" style="text-decoration: none; flex: 1;">
                  <button class="btn btn-primary" style="margin-bottom: 0; background-color: #28a745; color: white;">💾 Exportar AFD</button>
@@ -51,7 +51,7 @@
                 </thead>
                 <tbody id="corpoTabela">
                     <tr>
-                        <td colspan="4" style="text-align: center; color: #777;">Digite pelo menos 3 letras para carregar os dados...</td>
+                        <td colspan="5" style="text-align: center; color: #777;">Digite pelo menos 3 letras para carregar os dados...</td>
                     </tr>
                 </tbody>
             </table>
