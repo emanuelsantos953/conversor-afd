@@ -2,6 +2,8 @@ import pandas as pd
 import csv
 import io
 import json
+import time # Para dar um efeito visual (opcional)
+from django.http import StreamingHttpResponse
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
 from .forms import FuncionarioForm
@@ -175,81 +177,153 @@ def importar_afd(request):
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
         grupo_ponto = request.POST.get('grupo_ponto')
-
+        
         if arquivo:
-            linhas = arquivo.read().decode('utf-8', errors='ignore').splitlines()
-            dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
-            funcionarios_atualizados = []
+            # Precisamos ler o arquivo todo para a memória antes de iniciar o stream
+            conteudo = arquivo.read().decode('utf-8', errors='ignore')
+            linhas = conteudo.splitlines()
 
-            # NOVA LISTA: Guarda os PIS que não existem no banco
-            pis_desconhecidos = set() 
+            # Esta é a função geradora que vai "cuspir" as linhas para o navegador
+            def stream_processamento():
+                # 1. Envia o Cabeçalho HTML e Estilo (Tela Preta estilo Terminal)
+                yield """
+                <html>
+                <head>
+                    <style>
+                        body { background-color: #1e1e1e; color: #00ff00; font-family: 'Courier New', monospace; padding: 20px; }
+                        .log-line { margin: 2px 0; border-bottom: 1px solid #333; }
+                        .success { color: #00ff00; }
+                        .warning { color: #ffeb3b; }
+                        .error { color: #ff5252; }
+                        .info { color: #00bcd4; }
+                        .summary { margin-top: 20px; font-size: 1.2em; border-top: 2px solid white; padding-top: 10px; }
+                        .btn { display: inline-block; padding: 10px 20px; background: white; color: black; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold;}
+                    </style>
+                </head>
+                <body>
+                <h2>Iniciando Processamento do Arquivo AFD...</h2>
+                <div id="terminal">
+                """
+                
+                pis_desconhecidos = set()
+                total_linhas = len(linhas)
+                processados = 0
+                
+                dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+                funcionarios_atualizados = []
 
-            for linha in linhas:
-                linha = linha.strip()
-                if not linha or linha.startswith('000000000') or len(linha) < 34:
-                    continue
-
-                if linha[9] == '3':
-                    data_txt = linha[10:18]
-                    hora_txt = linha[18:22]
-                    pis_txt = linha[23:34]
-
-                    # SE O PIS ESTIVER NA LISTA NEGRA, PULA IMEDIATAMENTE!
-                    if PisIgnorado.objects.filter(pis=pis_txt).exists():
+                for i, linha in enumerate(linhas):
+                    linha = linha.strip()
+                    if not linha:
+                        continue
+                    
+                    if linha.startswith('000000000') or len(linha) < 34:
                         continue
 
-                    try:
-                        data_batida = datetime.strptime(data_txt, '%d%m%Y').date()
-                        hora_batida = datetime.strptime(hora_txt, '%H%M').time()
-                    except ValueError:
-                        continue
+                    # Apenas processa registros de ponto (Tipo 3)
+                    if linha[9] == '3':
+                        msg_log = ""
+                        status_css = "info"
+                        
+                        try:
+                            # === DETECTOR DE FORMATO ===
+                            if linha[14] == '-': 
+                                # NOVO
+                                data_txt = linha[10:20]
+                                hora_txt = linha[21:26]
+                                identificador_txt = linha[34:45]
+                                data_batida = datetime.strptime(data_txt, '%Y-%m-%d').date()
+                                hora_batida = datetime.strptime(hora_txt, '%H:%M').time()
+                            else:
+                                # LEGADO
+                                data_txt = linha[10:18]
+                                hora_txt = linha[18:22]
+                                identificador_txt = linha[23:34]
+                                data_batida = datetime.strptime(data_txt, '%d%m%Y').date()
+                                hora_batida = datetime.strptime(hora_txt, '%H%M').time()
 
-                    funcionario = Funcionario.objects.filter(pis=pis_txt).first()
+                            # Verifica se está na lista negra
+                            if PisIgnorado.objects.filter(pis=identificador_txt).exists():
+                                yield f"<div class='log-line warning'>[IGNORADO] PIS/CPF {identificador_txt} está na lista negra.</div>"
+                                continue
 
-                    if funcionario:
-                        if grupo_ponto and funcionario.id not in funcionarios_atualizados:
-                            funcionario.grupo_ponto = grupo_ponto
-                            funcionario.save()
-                            funcionarios_atualizados.append(funcionario.id)
+                            # Busca Funcionário
+                            funcionario = Funcionario.objects.filter(pis=identificador_txt).first()
+                            if not funcionario:
+                                funcionario = Funcionario.objects.filter(cpf=identificador_txt).first()
 
-                        registro, created = RegistroPonto.objects.get_or_create(
-                            funcionario=funcionario,
-                            data=data_batida,
-                            defaults={'dia_semana': dias_semana_pt[data_batida.weekday()]}
-                        )
+                            if funcionario:
+                                msg_log = f"[SUCESSO] {funcionario.nome_completo} - {data_batida} às {hora_batida}"
+                                status_css = "success"
 
-                        if registro.editado_manualmente:
-                            continue
+                                # Atualiza Grupo
+                                if grupo_ponto and funcionario.id not in funcionarios_atualizados:
+                                    funcionario.grupo_ponto = grupo_ponto
+                                    funcionario.save()
+                                    funcionarios_atualizados.append(funcionario.id)
+                                    msg_log += " (Grupo Atualizado)"
 
-                        batidas_existentes = []
-                        for campo in ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']:
-                            hora_salva = getattr(registro, campo)
-                            if hora_salva:
-                                batidas_existentes.append(hora_salva)
+                                # Salva Ponto
+                                registro, created = RegistroPonto.objects.get_or_create(
+                                    funcionario=funcionario,
+                                    data=data_batida,
+                                    defaults={'dia_semana': dias_semana_pt[data_batida.weekday()]}
+                                )
 
-                        if hora_batida not in batidas_existentes and len(batidas_existentes) < 6:
-                            batidas_existentes.append(hora_batida)
-                            batidas_existentes.sort()
+                                if not registro.editado_manualmente:
+                                    batidas_existentes = []
+                                    for campo in ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']:
+                                        hora_salva = getattr(registro, campo)
+                                        if hora_salva:
+                                            batidas_existentes.append(hora_salva)
 
-                            registro.entrada_1 = batidas_existentes[0] if len(batidas_existentes) > 0 else None
-                            registro.saida_1 = batidas_existentes[1] if len(batidas_existentes) > 1 else None
-                            registro.entrada_2 = batidas_existentes[2] if len(batidas_existentes) > 2 else None
-                            registro.saida_2 = batidas_existentes[3] if len(batidas_existentes) > 3 else None
-                            registro.entrada_3 = batidas_existentes[4] if len(batidas_existentes) > 4 else None
-                            registro.saida_3 = batidas_existentes[5] if len(batidas_existentes) > 5 else None
-                            registro.save()
-                    else:
-                        # O PIS NÃO EXISTE E NÃO ESTÁ IGNORADO!
-                        pis_desconhecidos.add(pis_txt)
+                                    if hora_batida not in batidas_existentes and len(batidas_existentes) < 6:
+                                        batidas_existentes.append(hora_batida)
+                                        batidas_existentes.sort()
+                                        
+                                        # Reorganiza
+                                        registro.entrada_1 = batidas_existentes[0] if len(batidas_existentes) > 0 else None
+                                        registro.saida_1 = batidas_existentes[1] if len(batidas_existentes) > 1 else None
+                                        registro.entrada_2 = batidas_existentes[2] if len(batidas_existentes) > 2 else None
+                                        registro.saida_2 = batidas_existentes[3] if len(batidas_existentes) > 3 else None
+                                        registro.entrada_3 = batidas_existentes[4] if len(batidas_existentes) > 4 else None
+                                        registro.saida_3 = batidas_existentes[5] if len(batidas_existentes) > 5 else None
+                                        registro.save()
+                                    else:
+                                        msg_log += " (Dia Cheio ou Batida Duplicada)"
+                            else:
+                                msg_log = f"[DESCONHECIDO] PIS/CPF {identificador_txt} não encontrado no banco."
+                                status_css = "error"
+                                pis_desconhecidos.add(identificador_txt)
 
-            # SE ACHOU PIS DESCONHECIDO, DEVOLVE ELES PARA A TELA
-            if pis_desconhecidos:
-                return render(request, 'core/importar_afd.html', {
-                    'alerta_pis': True,
-                    'pis_desconhecidos': list(pis_desconhecidos)
-                })
+                        except Exception as e:
+                            msg_log = f"[ERRO DE LEITURA] Linha {i}: {str(e)}"
+                            status_css = "error"
 
-            return redirect('listar_funcionarios')
+                        # ENVIA A LINHA PROCESSADA PARA A TELA IMEDIATAMENTE
+                        yield f"<div class='log-line {status_css}'>{msg_log}</div>"
+                        
+                        # Auto-scroll para baixo via Javascript injetado
+                        yield "<script>window.scrollTo(0, document.body.scrollHeight);</script>"
+
+                # FIM DO PROCESSO
+                yield "</div>" # fecha div terminal
+                
+                if pis_desconhecidos:
+                    yield "<div class='summary error'>⚠️ Foram encontrados PIS/CPFs desconhecidos!</div>"
+                    yield "<ul>"
+                    for pis in pis_desconhecidos:
+                        yield f"<li>{pis}</li>"
+                    yield "</ul>"
+                    yield "<p>Copie os números acima e cadastre-os.</p>"
+                else:
+                    yield "<div class='summary success'>✅ Importação concluída com sucesso total!</div>"
+
+                yield f"<br><a href='/gerenciar/' class='btn'>Voltar para Funcionários</a>"
+                yield "</body></html>"
+
+            # Retorna o Stream em vez de uma página estática
+            return StreamingHttpResponse(stream_processamento())
 
     return render(request, 'core/importar_afd.html')
 
