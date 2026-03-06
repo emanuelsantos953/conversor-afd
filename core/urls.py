@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from . import views
 from django.contrib.auth import views as auth_views
 
@@ -17,4 +17,5 @@ urlpatterns = [
     path('importar-planilha/', views.importar_planilha, name='importar_planilha'),
     path('importar-afd/', views.importar_afd, name='importar_afd'),
     path('exportar-afd/', views.exportar_afd, name='exportar_afd'),
+    path('b75/', include('b75.urls')),
 ]

@@ -32,6 +32,7 @@ ALLOWED_HOSTS = ['192.168.0.9', 'localhost']
 
 INSTALLED_APPS = [
     'core',
+    'b75',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -88,9 +89,18 @@ DATABASES = {
         'PASSWORD': '@Xj3xxyr4cjtqd6j',
         'HOST': 'localhost',
         'PORT': '3306',
+    },
+    'b75_db': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'b75_db',            # Banco do Bingo (Novo)
+        'USER': 'adminvm',           # Mesmo usuário
+        'PASSWORD': '@Xj3xxyr4cjtqd6j', # <--- MESMA SENHA DO DE CIMA
+        'HOST': 'localhost',
+        'PORT': '3306',
     }
 }
 
+DATABASE_ROUTERS = ['b75.db_router.B75Router']
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
