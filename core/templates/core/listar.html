@@ -9,35 +9,63 @@
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
         th { background-color: #e0e0e0; }
-        .search-box { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        
+        /* Caixa de busca e Select alinhados perfeitamente */
+        .search-box { 
+            width: 100%; 
+            height: 48px; 
+            padding: 0 12px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            font-size: 16px; 
+            box-sizing: border-box; 
+            font-family: inherit; 
+            outline: none; 
+        }
+        .search-box:focus {
+            border-color: #417690;
+        }
+        
+        .search-container { display: flex; gap: 10px; margin-bottom: 20px; }
     </style>
 </head>
 <body>
-    <div class="card" style="max-width: 800px;">
+    <div class="card" style="max-width: 800px; margin: 20px auto;">
         <div class="card-header">
             Gerenciar Funcionários
         </div>
         <div class="card-body">
             
-            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
              <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none; flex: 1;">
-                 <button class="btn btn-primary" style="margin-bottom: 0;">+ Cadastrar Novo</button>
+                 <button class="btn btn-primary" style="margin-bottom: 0; width: 100%;">+ Cadastrar Novo</button>
              </a>
              <a href="{% url 'importar_funcionarios' %}" style="text-decoration: none; flex: 1;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c;">↑ Importar Funcionários</button>
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c; width: 100%;">↑ Importar Funcionários</button>
              </a>
              <a href="{% url 'importar_afd' %}" style="text-decoration: none; flex: 1;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #ffb74d; color: #333;">⏰ Importar AFD</button>
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #ffb74d; color: #333; width: 100%;">⏰ Importar AFD</button>
              </a>
              <a href="{% url 'importar_planilha' %}" style="text-decoration: none; flex: 1;">
-             <button class="btn btn-primary" style="margin-bottom: 0; background-color: #17a2b8; color: white;">📊 Importar XLS</button>
+             <button class="btn btn-primary" style="margin-bottom: 0; background-color: #17a2b8; color: white; width: 100%;">📊 Importar XLS</button>
              </a>
              <a href="{% url 'exportar_afd' %}" style="text-decoration: none; flex: 1;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #28a745; color: white;">💾 Exportar AFD</button>
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #28a745; color: white; width: 100%;">💾 Exportar AFD</button>
              </a>
          </div>
 
-            <input type="text" id="campoBusca" class="search-box" placeholder="Pesquisar funcionário por nome (mínimo 3 letras)...">
+            <div class="search-container">
+                <input type="text" id="campoBusca" class="search-box" style="flex: 3;" placeholder="Pesquisar por Nome, Matrícula, PIS ou CPF...">
+                
+                <select id="campoGrupo" class="search-box" style="flex: 1;">
+                    <option value="">Todos os Grupos</option>
+                    {% for grupo in grupos %}
+                        {% if grupo %}
+                            <option value="{{ grupo }}">{{ grupo }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
             
             <table>
                 <thead>
@@ -51,7 +79,7 @@
                 </thead>
                 <tbody id="corpoTabela">
                     <tr>
-                        <td colspan="5" style="text-align: center; color: #777;">Digite pelo menos 3 letras para carregar os dados...</td>
+                        <td colspan="5" style="text-align: center; color: #777;">Digite pelo menos 3 caracteres ou escolha um grupo para carregar...</td>
                     </tr>
                 </tbody>
             </table>
@@ -63,13 +91,22 @@
     </div>
 
     <script>
-        document.getElementById('campoBusca').addEventListener('input', function() {
-            let query = this.value;
-            let tbody = document.getElementById('corpoTabela');
+        const campoBusca = document.getElementById('campoBusca');
+        const campoGrupo = document.getElementById('campoGrupo');
+        const tbody = document.getElementById('corpoTabela');
 
-            if (query.length >= 3) {
-                // Faz a chamada em segundo plano para o Python
-                fetch(`{% url 'listar_funcionarios' %}?q=${query}`)
+        function buscarFuncionarios() {
+            let query = campoBusca.value.trim();
+            let grupo = campoGrupo.value;
+
+            // Busca se o usuário digitou pelo menos 3 caracteres OU se selecionou algum grupo específico
+            if (query.length >= 3 || grupo !== '') {
+                
+                // Exibe "Carregando..." enquanto o servidor pensa
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">Buscando...</td></tr>';
+
+                // Envia tanto o texto quanto o grupo para o Python (views.py)
+                fetch(`{% url 'listar_funcionarios' %}?q=${encodeURIComponent(query)}&grupo=${encodeURIComponent(grupo)}`)
                 .then(response => response.json())
                 .then(data => {
                     tbody.innerHTML = ''; // Limpa a tabela
@@ -88,14 +125,21 @@
                             `;
                         });
                     } else {
-                        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Nenhum funcionário encontrado com esse nome.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Nenhum funcionário encontrado com estes filtros.</td></tr>';
                     }
+                })
+                .catch(error => {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Erro ao buscar dados.</td></tr>';
                 });
             } else {
-                // Se apagar ou tiver menos de 3 letras, esconde tudo novamente
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">Digite pelo menos 3 letras para carregar os dados...</td></tr>';
+                // Se limpar tudo, volta a mensagem original
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">Digite pelo menos 3 caracteres ou escolha um grupo para carregar...</td></tr>';
             }
-        });
+        }
+
+        // Os "Ouvintes" ficam prestando atenção em qualquer digitação ou mudança no grupo
+        campoBusca.addEventListener('input', buscarFuncionarios);
+        campoGrupo.addEventListener('change', buscarFuncionarios);
     </script>
 </body>
 </html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Sorteio | {{ sorteio.nome }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { background-color: #f4f7f6; }
+        .bola-bingo { width: 45px; height: 45px; font-size: 0.9rem; font-weight: bold; transition: all 0.3s ease; }
+        #bola-grande { text-shadow: 2px 2px 4px rgba(0,0,0,0.1); }
+        .ranking-card { border-radius: 15px; overflow: hidden; }
+        .turbo-icon { animation: spin 2s linear infinite; display: none; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="{% url 'listar_sorteios' %}">
+            <i class="bi bi-arrow-left"></i> Voltar aos Sorteios
+        </a>
+        <span class="navbar-text text-white fw-bold">Sistema B75 - Painel de Controle</span>
+    </div>
+</nav>
+
+<div class="container">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm">
+        <h1 class="h3 mb-0">Sorteio: <strong>{{ sorteio.nome }}</strong></h1>
+        <div class="d-flex align-items-center gap-3">
+            <a href="{% url 'visualizar_cartelas' sorteio.id %}" target="_blank" class="btn btn-outline-primary btn-sm fw-bold">
+                <i class="bi bi-eye"></i> Visualizar Cartelas
+            </a>
+            <span class="badge rounded-pill p-2 px-3 {% if sorteio.status == 'active' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                <i class="bi bi-info-circle"></i> {{ sorteio.get_status_display }}
+            </span>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm p-5 mb-4 text-center border-0">
+                <h2 class="text-muted text-uppercase small fw-bold">Última Bola Sorteada</h2>
+                <div id="bola-grande" class="display-1 fw-bold text-primary my-4 animate__animated animate__bounceIn">
+                    {% if sorteados %}{{ sorteados.last }}{% else %}--{% endif %}
+                </div>
+                
+                {% if sorteio.status == 'pending' %}
+                    <div class="alert alert-warning text-start mx-auto" style="max-width: 500px;">
+                        <strong><i class="bi bi-exclamation-triangle"></i> Atenção:</strong> Ao iniciar, as cartelas serão travadas. Não será mais possível gerar novas ou excluir as existentes.
+                    </div>
+                    <a href="{% url 'iniciar_sorteio' sorteio.id %}" class="btn btn-success btn-lg px-5 shadow" 
+                       onclick="return confirm('Deseja iniciar o sorteio agora? Nenhuma cartela poderá ser alterada.')">
+                        <i class="bi bi-play-circle-fill"></i> INICIAR SORTEIO AGORA
+                    </a>
+                
+               {% elif sorteio.status == 'active' %}
+                    <div class="row g-3 justify-content-center">
+                        <div class="col-auto">
+                            <button id="btn-sortear" class="btn btn-primary btn-lg shadow w-100" onclick="fazerSorteio('draw_one')">
+                                <i class="bi bi-play-fill"></i> Sortear Próximo
+                            </button>
+                        </div>
+                        
+                        <div class="col-auto">
+                            <button id="btn-turbo" class="btn btn-warning btn-lg shadow text-dark fw-bold w-100" onclick="fazerSorteio('turbo')">
+                                <i class="bi bi-lightning-charge-fill"></i> Sorteio Turbo <i class="bi bi-arrow-repeat turbo-icon" id="spinner-turbo"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="col-auto">
+                            <form action="{% url 'encerrar_sorteio' sorteio.id %}" method="POST" class="m-0">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-lg shadow w-100" onclick="return confirm('Tem certeza que deseja ENCERRAR este sorteio? O globo será bloqueado.')">
+                                    <i class="bi bi-stop-circle-fill"></i> Encerrar
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="d-flex justify-content-center gap-2 mx-auto" style="max-width: 300px;">
+                        <input type="number" id="num-manual" class="form-control" placeholder="Ex: 42" min="1" max="75">
+                        <button class="btn btn-secondary" onclick="fazerSorteio('manual')">
+                            <i class="bi bi-input-cursor-text"></i> Inserir
+                        </button>
+                    </div>
+                
+                {% else %}
+                    <div class="alert alert-secondary text-start mx-auto shadow-sm" style="max-width: 500px;">
+                        <h5 class="alert-heading text-dark fw-bold"><i class="bi bi-check-circle-fill text-success"></i> Sorteio Finalizado</h5>
+                        <p class="mb-0 text-muted">Este jogo foi encerrado e os resultados estão registrados. Nenhuma alteração a mais pode ser feita.</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-0 pt-3">
+                    <h5 class="card-title"><i class="bi bi-grid-3x3-gap"></i> Mapa de Bolas (1-75)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2 justify-content-center" id="grid-bingo">
+                        {% for n in range_1_76 %}
+                        <div class="bola-bingo border rounded-circle d-flex align-items-center justify-content-center 
+                             {% if n in sorteados %}bg-primary text-white shadow-sm{% else %}bg-white text-muted{% endif %}" 
+                             id="num-{{ n }}">
+                            {{ n }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 ranking-card">
+                <div class="card-header bg-dark text-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-trophy"></i> Ranking: Próximos</h5>
+                </div>
+                <ul class="list-group list-group-flush">
+                    {% for item in ranking %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                        <div>
+                            <span class="fw-bold">{{ item.cliente }}</span>
+                            <br><small class="text-muted">Cartela #{{ item.cartela_id }}</small>
+                        </div>
+                        <span class="badge {% if item.faltam == 1 %}bg-danger animate-pulse{% else %}bg-secondary{% endif %} rounded-pill">
+                            Faltam {{ item.faltam }}
+                        </span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-center py-4 text-muted">
+                        Aguardando início do jogo...
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function fazerSorteio(tipo) {
+    let url = '?action=' + tipo;
+    
+    // Bloqueia botões para evitar clique duplo
+    document.getElementById('btn-sortear').disabled = true;
+    document.getElementById('btn-turbo').disabled = true;
+    
+    if (tipo === 'manual') {
+        let num = document.getElementById('num-manual').value;
+        if (!num || num < 1 || num > 75) {
+            alert("Digite um número válido de 1 a 75.");
+            liberarBotoes();
+            return;
+        }
+        url += '&number=' + num;
+        document.getElementById('num-manual').value = ''; // limpa o campo
+    }
+    
+    if (tipo === 'turbo') {
+        if (!confirm("O MODO TURBO sorteará bolas rapidamente até alguém gritar BINGO. Deseja continuar?")) {
+            liberarBotoes();
+            return;
+        }
+        document.getElementById('spinner-turbo').style.display = 'inline-block';
+    }
+
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(response => {
+        if (!response.ok) return response.json().then(err => { throw err; });
+        return response.json();
+    })
+    .then(data => {
+        if (data.numeros_turbo) {
+            // Efeito visual na bola grande para a última bola sorteada
+            if(data.numero) {
+                document.getElementById('bola-grande').innerText = data.numero;
+            }
+            
+            // Marca todas as bolas sorteadas no grid (pode ser 1 ou várias se for turbo)
+            data.numeros_turbo.forEach(num => {
+                const gridNum = document.getElementById('num-' + num);
+                if (gridNum) {
+                    gridNum.classList.remove('bg-white', 'text-muted');
+                    gridNum.classList.add('bg-primary', 'text-white', 'shadow-sm');
+                }
+            });
+            
+            if (data.ganhadores.length > 0) {
+                const nomes = data.ganhadores.map(g => g.nome).join(', ');
+                alert("🎉 BINGO! 🎉\n\nGanhadores:\n" + nomes);
+                location.reload(); // Recarrega para ver o final oficial
+            } else if (tipo !== 'turbo') {
+                location.reload(); // Atualiza ranking para sorteios manuais/normais
+            }
+        }
+        liberarBotoes();
+    })
+    .catch(err => {
+        alert("Erro: " + (err.error || "Falha na comunicação"));
+        liberarBotoes();
+    });
+}
+
+function liberarBotoes() {
+    document.getElementById('btn-sortear').disabled = false;
+    document.getElementById('btn-turbo').disabled = false;
+    document.getElementById('spinner-turbo').style.display = 'none';
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

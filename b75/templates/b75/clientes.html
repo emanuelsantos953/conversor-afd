@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Clientes | B75</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Roboto', sans-serif; margin: 0; padding: 20px; color: #0f172a; }
+        
+        /* Layout Grid Responsivo */
+        .page-grid { 
+            display: grid; 
+            grid-template-columns: 1fr; 
+            gap: 24px; 
+            max-width: 1200px; 
+            margin: 0 auto; 
+        }
+
+        /* Cartões estilo Shadcn/UI */
+        .card { 
+            background: white; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+        .card-header { padding: 24px; border-bottom: 1px solid #e2e8f0; }
+        .card-title { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 12px; margin: 0; }
+        .card-desc { color: #64748b; margin-top: 6px; font-size: 0.95rem; }
+        .card-content { padding: 24px; }
+
+        /* Botões */
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; border-radius: 6px; font-weight: 500; text-decoration: none; cursor: pointer; transition: 0.2s; border: none; font-size: 0.9rem; }
+        .btn-primary { background: #0f172a; color: white; }
+        .btn-primary:hover { background: #334155; }
+        .btn-outline { border: 1px solid #e2e8f0; background: white; color: #0f172a; }
+        .btn-outline:hover { background: #f1f5f9; }
+        .btn-danger { color: #ef4444; background: transparent; padding: 8px; }
+        .btn-danger:hover { background: #fee2e2; border-radius: 4px; }
+
+        /* Inputs */
+        .input-group { position: relative; margin-top: 10px; }
+        .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #64748b; }
+        .form-input { width: 100%; padding: 10px 10px 10px 40px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem; box-sizing: border-box; }
+        .form-input:focus { outline: 2px solid #0f172a; border-color: transparent; }
+
+        /* Tabela */
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; color: #64748b; font-weight: 500; font-size: 0.875rem; border-bottom: 1px solid #e2e8f0; }
+        td { padding: 16px 12px; border-bottom: 1px solid #e2e8f0; font-size: 0.95rem; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background-color: #f8f9fa; }
+
+        /* Modal / Form Lateral */
+        .form-label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px; margin-top: 16px; }
+        .simple-input { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
+
+        /* Badges */
+        .badge-contact { background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-family: monospace; }
+        .badge-comanda { background: #fef3c7; color: #92400e; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: bold; letter-spacing: 0.5px; }
+        
+        .back-link { display: inline-block; margin-bottom: 20px; color: #64748b; text-decoration: none; font-size: 0.9rem; }
+        .back-link:hover { color: #0f172a; }
+    </style>
+</head>
+<body>
+
+    <a href="{% url 'home_bingo' %}" class="back-link">← Voltar para o Menu</a>
+
+    <div class="page-grid">
+        
+        <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                    <h1 class="card-title"><i class="bi bi-people-fill"></i> Gerenciamento Global de Clientes</h1>
+                    <p class="card-desc">Gerencie seus clientes, vincule comandas, e visualize o histórico de participações.</p>
+                </div>
+                <a href="#form-cadastro" class="btn btn-primary" onclick="document.getElementById('nome_input').focus()">
+                    <i class="bi bi-plus-circle-fill" style="margin-right: 8px;"></i> Novo Cliente
+                </a>
+            </div>
+            
+            <div class="card-content">
+                <div class="input-group">
+                    <i class="bi bi-search search-icon"></i>
+                    <form method="get">
+                        <input type="text" name="q" class="form-input" placeholder="Buscar por nome, comanda ou contato..." value="{{ search_query }}">
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+            
+            <div class="card">
+                <div class="card-content" style="padding: 0;">
+                    <table cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th style="padding-left: 24px;">Nome</th>
+                                <th>Comanda</th>
+                                <th>Contato</th>
+                                <th style="text-align: right; padding-right: 24px;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cliente in clientes %}
+                            <tr>
+                                <td style="padding-left: 24px;">
+                                    <strong>{{ cliente.nome }}</strong>
+                                    {% if cliente.email %}
+                                        <div style="font-size: 0.8rem; color: #64748b;">{{ cliente.email }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if cliente.comanda %}
+                                        <span class="badge-comanda"><i class="bi bi-tag-fill"></i> {{ cliente.comanda }}</span>
+                                    {% else %}
+                                        <span style="color: #94a3b8; font-size: 0.85rem;">Sem comanda</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if cliente.telefone %}
+                                        <span class="badge-contact"><i class="bi bi-whatsapp"></i> {{ cliente.telefone }}</span>
+                                    {% else %}
+                                        <span style="color: #94a3b8;">-</span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align: right; padding-right: 24px;">
+                                    <a href="{% url 'detalhes_cliente' cliente.id %}" class="btn btn-outline" style="padding: 6px 12px; margin-right: 5px;" title="Ver Detalhes">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    
+                                    <a href="{% url 'excluir_cliente' cliente.id %}" class="btn-danger" onclick="return confirm('Remover este cliente?')" title="Excluir">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" style="text-align: center; padding: 40px; color: #64748b;">
+                                    <i class="bi bi-inbox" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
+                                    Nenhum cliente encontrado.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card" id="form-cadastro" style="height: fit-content;">
+                <div class="card-header">
+                    <h3 class="card-title" style="font-size: 1.1rem;"><i class="bi bi-person-plus"></i> Adicionar Rápido</h3>
+                </div>
+                <div class="card-content">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <label class="form-label">Nome Completo</label>
+                        {{ form.nome }} 
+
+                        <label class="form-label">Comanda (Opcional)</label>
+                        {{ form.comanda }}
+                        
+                        <label class="form-label">Contato / WhatsApp</label>
+                        {{ form.telefone }}
+                        
+                        <label class="form-label">E-mail (Opcional)</label>
+                        {{ form.email }}
+
+                        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+                            Salvar Cliente
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+</html>

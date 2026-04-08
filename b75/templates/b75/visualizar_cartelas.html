@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciar Cartelas | {{ sorteio.nome }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        body { background-color: #f4f7f6; }
+        .cartela-bingo { background: #fff; border-radius: 10px; border: 2px solid #343a40; overflow: hidden; break-inside: avoid; }
+        .bingo-header { background: #343a40; color: white; display: flex; text-align: center; font-size: 1.5rem; font-weight: bold; }
+        .bingo-header div { flex: 1; padding: 10px 0; border-right: 1px solid #495057; }
+        .bingo-header div:last-child { border-right: none; }
+        .bingo-grid table { width: 100%; text-align: center; margin-bottom: 0; table-layout: fixed; }
+        .bingo-grid td { width: 20%; padding: 15px 5px; font-size: 1.2rem; font-weight: bold; border: 1px solid #dee2e6; height: 65px; vertical-align: middle; }
+        .free-space { background-color: #e9ecef; font-size: 0.8rem !important; color: #dc3545; }
+        
+        /* Nova classe para os números sorteados */
+        .numero-sorteado { background-color: #6c757d !important; color: white !important; }
+        
+        /* Regras para impressão */
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: #fff; }
+            .cartela-bingo { border: 1px solid #000; box-shadow: none !important; margin-bottom: 20px; }
+            .col-md-4 { width: 33.33333333%; float: left; padding: 0 10px; }
+            .numero-sorteado { background-color: #d1d5db !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-white shadow-sm py-3 mb-4 no-print">
+    <div class="container d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="mb-0 text-primary"><i class="bi bi-ticket-perforated"></i> Gerenciador de Cartelas</h4>
+            <span class="text-muted small">Sorteio: {{ sorteio.nome }}</span>
+        </div>
+        
+        <form method="GET" class="d-flex gap-2" style="max-width: 400px; width: 100%;">
+            <input type="text" name="q" class="form-control" placeholder="Buscar cliente, lote ou cód..." value="{{ query }}">
+            <button type="submit" class="btn btn-dark"><i class="bi bi-search"></i></button>
+            {% if query %}
+                <a href="{% url 'visualizar_cartelas' sorteio.id %}" class="btn btn-outline-secondary" title="Limpar"><i class="bi bi-x-lg"></i></a>
+            {% endif %}
+        </form>
+        
+        <div class="d-flex gap-2">
+            <button onclick="window.print()" class="btn btn-success">
+                <i class="bi bi-printer"></i> Imprimir Tudo
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="container pb-5">
+    
+    {% if messages %}
+    <div class="row mb-3 no-print">
+        <div class="col-12">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if sorteio.status == 'pending' %}
+        <div class="card shadow-sm border-0 mb-5 no-print">
+            <div class="card-header bg-white border-0 pt-3">
+                <h5 class="card-title text-primary"><i class="bi bi-plus-circle-dotted"></i> Criar Novas Cartelas</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-md-6 border-end">
+                        <label class="form-label small fw-bold">Vincular a Cliente Cadastrado</label>
+                        <form action="{% url 'gerar_cartelas' sorteio.id %}" method="POST" class="d-flex gap-2" id="formVincular">
+                            {% csrf_token %}
+                            <input type="hidden" name="cliente_id" id="clienteIdHidden" required>
+                            <input class="form-control" list="datalistClientes" id="clienteInput" placeholder="Digite o nome..." autocomplete="off" required>
+                            <datalist id="datalistClientes">
+                                {% for cliente in todos_clientes %}
+                                <option value="{{ cliente.nome }}" data-id="{{ cliente.id }}"></option>
+                                {% endfor %}
+                            </datalist>
+                            <input type="number" name="quantidade" class="form-control" value="1" min="1" style="width: 80px;" title="Quantidade">
+                            <button type="submit" class="btn btn-primary">Vincular</button>
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Gerar Lote Avulso (Sem Cliente)</label>
+                        <form action="{% url 'gerar_cartelas_avulsas' sorteio.id %}" method="POST" class="d-flex gap-2">
+                            {% csrf_token %}
+                            <input type="text" name="lote_nome" class="form-control" placeholder="Nome do Lote" required>
+                            <input type="number" name="quantidade" class="form-control" value="10" min="1" style="width: 80px;">
+                            <button type="submit" class="btn btn-secondary">Gerar Lote</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-secondary shadow-sm mb-5 no-print border-0 d-flex align-items-center">
+            <i class="bi bi-lock-fill fs-4 me-3 text-dark"></i>
+            <div>
+                <strong>Geração e exclusão bloqueadas!</strong><br>
+                <span class="small text-muted">Este sorteio já foi iniciado ou encerrado. As cartelas participantes estão travadas para garantir a integridade do jogo.</span>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="row g-4">
+        {% for cartela in cartelas %}
+        <div class="col-md-6 col-lg-4">
+            <div class="cartela-bingo shadow-sm" id="cartela-{{ cartela.id }}">
+                
+                <div class="bg-light px-3 py-2 text-center border-bottom">
+                    <span class="fw-bold text-uppercase" style="font-size: 0.9rem; letter-spacing: 1px;">
+                        <i class="bi bi-trophy-fill text-warning"></i> {{ sorteio.nome }}
+                    </span>
+                </div>
+
+                <div class="bingo-header">
+                    <div>B</div><div>I</div><div>N</div><div>G</div><div>O</div>
+                </div>
+                
+                <div class="bingo-grid bg-white">
+                    <table class="table table-bordered mb-0">
+                        <tbody>
+                            {% for linha in cartela.linhas %}
+                            <tr>
+                                {% for numero in linha %}
+                                    <td class="{% if numero == 'LIVRE' %}free-space{% elif numero in sorteados %}numero-sorteado{% endif %}">
+                                        {{ numero }}
+                                    </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="bg-light px-3 py-2 border-top">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-uppercase text-truncate" style="max-width: 160px; font-size: 0.85rem;">
+                            <i class="bi bi-person-fill"></i> {{ cartela.proprietario }}
+                        </span>
+                        <span class="text-muted fw-bold" style="font-size: 0.85rem; letter-spacing: 0.5px;">
+                            {{ cartela.hash|slice:":8"|upper }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="bg-white d-flex justify-content-end align-items-center px-3 py-2 border-top no-print" id="footer-{{ cartela.id }}">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" 
+                                onclick="compartilharCartela('{{ cartela.id }}', '{{ cartela.proprietario }}')">
+                            <i class="bi bi-share"></i> PNG
+                        </button>
+
+                        {% if sorteio.status == 'pending' %}
+                        <form action="{% url 'excluir_cartela' sorteio.id cartela.id %}" method="POST" class="m-0">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" 
+                                    onclick="return confirm('Apagar cartela #{{ cartela.id }}?')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                </div>
+        </div>
+        {% empty %}
+        <div class="col-12 text-center py-5">
+            <h5 class="text-muted">Nenhuma cartela encontrada.</h5>
+            <p>Utilize o formulário acima para criar as primeiras cartelas deste sorteio.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+// --- LÓGICA DE COMPARTILHAR / BAIXAR IMAGEM ---
+async function compartilharCartela(id, proprietario) {
+    const cartelaDiv = document.getElementById('cartela-' + id);
+    const footer = document.getElementById('footer-' + id);
+    
+    // 1. Esconde os botões do rodapé para eles não aparecerem na imagem
+    footer.style.display = 'none';
+    
+    // 2. Tira um print (screenshot) da cartela em alta qualidade
+    const canvas = await html2canvas(cartelaDiv, { scale: 2, backgroundColor: '#ffffff' });
+    
+    // 3. Devolve os botões para a tela
+    footer.style.display = 'flex';
+    
+    // 4. Converte o desenho para um arquivo de imagem (Blob)
+    canvas.toBlob(async (blob) => {
+        const nomeLimpo = proprietario.replace(/[^a-zA-Z0-9]/g, '_');
+        const fileName = `Cartela_${nomeLimpo}_${id}.png`;
+        const file = new File([blob], fileName, { type: 'image/png' });
+        
+        // Verifica se o aparelho suporta envio direto (Ex: Celulares com WhatsApp, Instagram)
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    title: 'Sua Cartela de Bingo!',
+                    text: `Aqui está a cartela de ${proprietario} para o nosso bingo! Boa sorte!`,
+                    files: [file]
+                });
+            } catch (error) {
+                console.log('Compartilhamento cancelado pelo usuário.', error);
+            }
+        } else {
+            // Se estiver no computador, ele baixa o PNG automaticamente para a pasta Downloads
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+    }, 'image/png');
+}
+
+// Lógica para o Autocompletar de Clientes
+document.getElementById('clienteInput').addEventListener('input', function(e) {
+    const inputVal = e.target.value;
+    const datalist = document.getElementById('datalistClientes');
+    const hiddenInput = document.getElementById('clienteIdHidden');
+    hiddenInput.value = ''; 
+    for (let option of datalist.options) {
+        if (option.value === inputVal) {
+            hiddenInput.value = option.getAttribute('data-id');
+            break;
+        }
+    }
+});
+
+document.getElementById('formVincular').addEventListener('submit', function(e) {
+    if (!document.getElementById('clienteIdHidden').value) {
+        e.preventDefault();
+        alert('Por favor, selecione um cliente válido da lista sugerida.');
+    }
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

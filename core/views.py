@@ -3,20 +3,71 @@ import csv
 import io
 import json
 import time # Para dar um efeito visual (opcional)
-from django.contrib.auth.decorators import login_required
-from django.http import StreamingHttpResponse
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.models import User, Group
+from django.contrib import messages
+from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from django.shortcuts import render, redirect
-from django.http import JsonResponse, HttpResponse
 from .forms import FuncionarioForm
 from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada
 from django.db import IntegrityError
+from django.db.models import Q  # <--- IMPORTANTE: Nova ferramenta para busca avançada (OU)
 from datetime import datetime, date
 import calendar
 
+# ==========================================
+# CONTROLE DE ACESSOS E MENU PRINCIPAL
+# ==========================================
+
+# Regra de segurança: Só superusuários (como o adminvm) podem acessar
+def is_admin(user):
+    return user.is_superuser
+
+@user_passes_test(is_admin)
+def gerenciar_usuarios(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        senha = request.POST.get('senha')
+        acesso_b75 = request.POST.get('acesso_b75') == 'on'
+        acesso_conversor = request.POST.get('acesso_conversor') == 'on'
+
+        if User.objects.filter(username=username).exists():
+            messages.error(request, f'O usuário {username} já existe!')
+        else:
+            # Cria o usuário com a senha criptografada
+            user = User.objects.create_user(username=username, password=senha)
+            
+            # Cria os grupos automaticamente caso não existam e adiciona o usuário
+            if acesso_b75:
+                grupo_b75, _ = Group.objects.get_or_create(name='B75')
+                user.groups.add(grupo_b75)
+            if acesso_conversor:
+                grupo_conv, _ = Group.objects.get_or_create(name='Conversor')
+                user.groups.add(grupo_conv)
+                
+            messages.success(request, f'Usuário {username} criado com sucesso!')
+            return redirect('gerenciar_usuarios')
+
+    # Busca todos os usuários para listar na tela
+    usuarios = User.objects.all().prefetch_related('groups')
+    
+    return render(request, 'core/gerenciar_usuarios.html', {'usuarios': usuarios})
 
 @login_required
 def home(request):
-    return render(request, 'core/home.html')
+    # Verifica permissões para os botões do Menu Principal
+    pode_acessar_b75 = request.user.is_superuser or request.user.groups.filter(name='B75').exists()
+    pode_acessar_conversor = request.user.is_superuser or request.user.groups.filter(name='Conversor').exists()
+
+    return render(request, 'core/home.html', {
+        'pode_acessar_b75': pode_acessar_b75,
+        'pode_acessar_conversor': pode_acessar_conversor,
+    })
+
+
+# ==========================================
+# FUNCIONÁRIOS E CADASTROS
+# ==========================================
 
 @login_required
 def cadastrar_funcionario(request):
@@ -35,67 +86,75 @@ def cadastrar_funcionario(request):
 
 @login_required
 def listar_funcionarios(request):
-    # Se a requisição tiver um parâmetro 'q' (que será enviado pelo JavaScript)
-    if 'q' in request.GET:
-        query = request.GET.get('q')
+    # Se a requisição tiver parâmetros de busca (vinda do Javascript)
+    if 'q' in request.GET or 'grupo' in request.GET:
+        query = request.GET.get('q', '').strip()
+        grupo = request.GET.get('grupo', '').strip()
 
-        # Só busca se tiver 3 ou mais letras
+        # Começa buscando todos
+        resultados = Funcionario.objects.all()
+
+        # 1. Filtro de Texto (Nome OU Matrícula OU PIS OU CPF)
         if len(query) >= 3:
-            # __icontains faz a busca ignorando maiúsculas/minúsculas. 
-            # O MySQL cuida de ignorar os acentos automaticamente!
-            resultados = Funcionario.objects.filter(nome_completo__icontains=query)
+            resultados = resultados.filter(
+                Q(nome_completo__icontains=query) |
+                Q(matricula__icontains=query) |
+                Q(pis__icontains=query) |
+                Q(cpf__icontains=query)
+            )
 
-            # Monta uma lista de dicionários para enviar ao JavaScript
-            dados = []
-            for func in resultados:
-                dados.append({
-                    'id': func.id,
-                    'matricula': func.matricula,
-                    'nome_completo': func.nome_completo,
-                    'pis': func.pis,
-                    'cpf': func.cpf,
-                    'grupo': func.grupo_ponto if func.grupo_ponto else 'Sem Grupo'
-                })
-            return JsonResponse({'funcionarios': dados})
-        else:
+        # 2. Filtro de Grupo (Se escolheu algum no Dropdown)
+        if grupo:
+            resultados = resultados.filter(grupo_ponto=grupo)
+
+        # Se não tem query válida nem grupo, não retorna nada
+        if len(query) < 3 and not grupo:
             return JsonResponse({'funcionarios': []})
 
-    # Se não for uma busca, apenas carrega a página vazia
-    return render(request, 'core/listar.html')
+        # Monta a lista para enviar ao Javascript (limitado a 100 para não travar a tela)
+        dados = []
+        for func in resultados[:100]:
+            dados.append({
+                'id': func.id,
+                'matricula': func.matricula,
+                'nome_completo': func.nome_completo,
+                'pis': func.pis,
+                'cpf': func.cpf,
+                'grupo': func.grupo_ponto if func.grupo_ponto else 'Sem Grupo'
+            })
+        return JsonResponse({'funcionarios': dados})
+
+    # Se for apenas carregar a página inteira, envia a lista de grupos para o Dropdown
+    grupos_existentes = Funcionario.objects.exclude(grupo_ponto__isnull=True).exclude(grupo_ponto__exact='').values_list('grupo_ponto', flat=True).distinct()
+    
+    return render(request, 'core/listar.html', {'grupos': grupos_existentes})
 
 @login_required
-def importar_funcionarios(request):
+def salvar_grupo(request):
     if request.method == 'POST':
-        arquivo = request.FILES.get('arquivo')
-        
-        if arquivo:
-            linhas = arquivo.read().decode('utf-8').splitlines()
-            linhas_limpas = [linha.strip() for linha in linhas if linha.strip()]
+        try:
+            # Lê os dados enviados pelo JavaScript
+            dados = json.loads(request.body)
+            funcionario_id = dados.get('funcionario_id')
+            novo_grupo = dados.get('grupo')
             
-            for i in range(0, len(linhas_limpas), 4):
-                if i + 3 < len(linhas_limpas):
-                    matricula_txt = linhas_limpas[i]
-                    nome_txt = linhas_limpas[i+1]
-                    pis_txt = linhas_limpas[i+2]
-                    cpf_txt = linhas_limpas[i+3]
-                    
-                    # 1. Verifica se a matrícula já existe
-                    if not Funcionario.objects.filter(matricula=matricula_txt).exists():
-                        # 2. Tenta salvar. Se esbarrar em um PIS ou CPF repetido, ele cai no "except"
-                        try:
-                            Funcionario.objects.create(
-                                matricula=matricula_txt,
-                                nome_completo=nome_txt,
-                                pis=pis_txt,
-                                cpf=cpf_txt
-                            )
-                        except IntegrityError:
-                            # Se der erro de banco de dados (dado duplicado), apenas ignora e continua o loop
-                            pass
+            # Busca o funcionário e atualiza o grupo
+            funcionario = Funcionario.objects.get(id=funcionario_id)
             
-            return redirect('listar_funcionarios')
+            # Se a pessoa apagar o texto, salva como None (vazio no banco)
+            funcionario.grupo_ponto = novo_grupo if novo_grupo.strip() else None
+            funcionario.save()
+            
+            return JsonResponse({'status': 'sucesso'})
+        except Exception as e:
+            return JsonResponse({'status': 'erro', 'mensagem': str(e)})
+            
+    return JsonResponse({'status': 'invalido'})
 
-    return render(request, 'core/importar.html')
+
+# ==========================================
+# GESTÃO DE PONTO E REGISTROS
+# ==========================================
 
 @login_required
 def ver_ponto(request, funcionario_id):
@@ -179,6 +238,11 @@ def salvar_ponto(request):
             return JsonResponse({'status': 'erro', 'mensagem': str(e)})
 
     return JsonResponse({'status': 'invalido'})
+
+
+# ==========================================
+# IMPORTAÇÃO / EXPORTAÇÃO AFD (TXT)
+# ==========================================
 
 @login_required
 def importar_afd(request):
@@ -336,6 +400,18 @@ def importar_afd(request):
     return render(request, 'core/importar_afd.html')
 
 @login_required
+def ignorar_pis(request):
+    if request.method == 'POST':
+        try:
+            dados = json.loads(request.body)
+            pis = dados.get('pis')
+            PisIgnorado.objects.get_or_create(pis=pis)
+            return JsonResponse({'status': 'sucesso'})
+        except Exception as e:
+            return JsonResponse({'status': 'erro'})
+    return JsonResponse({'status': 'invalido'})
+
+@login_required
 def exportar_afd(request):
     if request.method == 'POST':
         data_inicio = request.POST.get('data_inicio')
@@ -413,39 +489,44 @@ def exportar_afd(request):
     
     return render(request, 'core/exportar_afd.html', {'grupos': grupos, 'funcionarios': funcionarios})
 
-@login_required
-def salvar_grupo(request):
-    if request.method == 'POST':
-        try:
-            # Lê os dados enviados pelo JavaScript
-            dados = json.loads(request.body)
-            funcionario_id = dados.get('funcionario_id')
-            novo_grupo = dados.get('grupo')
-            
-            # Busca o funcionário e atualiza o grupo
-            funcionario = Funcionario.objects.get(id=funcionario_id)
-            
-            # Se a pessoa apagar o texto, salva como None (vazio no banco)
-            funcionario.grupo_ponto = novo_grupo if novo_grupo.strip() else None
-            funcionario.save()
-            
-            return JsonResponse({'status': 'sucesso'})
-        except Exception as e:
-            return JsonResponse({'status': 'erro', 'mensagem': str(e)})
-            
-    return JsonResponse({'status': 'invalido'})
+
+# ==========================================
+# IMPORTAÇÃO DE PLANILHAS (EXCEL/CSV)
+# ==========================================
 
 @login_required
-def ignorar_pis(request):
+def importar_funcionarios(request):
     if request.method == 'POST':
-        try:
-            dados = json.loads(request.body)
-            pis = dados.get('pis')
-            PisIgnorado.objects.get_or_create(pis=pis)
-            return JsonResponse({'status': 'sucesso'})
-        except Exception as e:
-            return JsonResponse({'status': 'erro'})
-    return JsonResponse({'status': 'invalido'})
+        arquivo = request.FILES.get('arquivo')
+        
+        if arquivo:
+            linhas = arquivo.read().decode('utf-8').splitlines()
+            linhas_limpas = [linha.strip() for linha in linhas if linha.strip()]
+            
+            for i in range(0, len(linhas_limpas), 4):
+                if i + 3 < len(linhas_limpas):
+                    matricula_txt = linhas_limpas[i]
+                    nome_txt = linhas_limpas[i+1]
+                    pis_txt = linhas_limpas[i+2]
+                    cpf_txt = linhas_limpas[i+3]
+                    
+                    # 1. Verifica se a matrícula já existe
+                    if not Funcionario.objects.filter(matricula=matricula_txt).exists():
+                        # 2. Tenta salvar. Se esbarrar em um PIS ou CPF repetido, ele cai no "except"
+                        try:
+                            Funcionario.objects.create(
+                                matricula=matricula_txt,
+                                nome_completo=nome_txt,
+                                pis=pis_txt,
+                                cpf=cpf_txt
+                            )
+                        except IntegrityError:
+                            # Se der erro de banco de dados (dado duplicado), apenas ignora e continua o loop
+                            pass
+            
+            return redirect('listar_funcionarios')
+
+    return render(request, 'core/importar.html')
 
 @login_required
 def importar_planilha(request):
@@ -490,13 +571,24 @@ def importar_planilha(request):
                     continue
                     
                 try:
+                    # Formato 1: DD/MM/YYYY HH:MM:SS (Padrão BR)
                     dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M:%S')
                 except ValueError:
                     try:
+                        # Formato 2: DD/MM/YYYY HH:MM
                         dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M')
                     except ValueError:
-                        print(f"Formato de data inválido ignorado: {hora_completa_txt}")
-                        continue
+                        try:
+                            # Formato 3: YYYY/MM/DD HH:MM:SS (O formato que deu erro)
+                            dt_obj = datetime.strptime(hora_completa_txt, '%Y/%m/%d %H:%M:%S')
+                        except ValueError:
+                            try:
+                                # Formato 4: YYYY/MM/DD HH:MM
+                                dt_obj = datetime.strptime(hora_completa_txt, '%Y/%m/%d %H:%M')
+                            except ValueError:
+                                # Se não for nenhum dos 4, aí sim ele ignora
+                                print(f"Formato de data inválido ignorado: {hora_completa_txt}")
+                                continue
                         
                 data_batida = dt_obj.date()
                 hora_batida = dt_obj.time()

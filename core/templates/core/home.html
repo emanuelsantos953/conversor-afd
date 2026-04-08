@@ -54,7 +54,16 @@
             box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3);
         }
 
-        /* CINZA (Logout) */
+        /* CINZA ESCURO - Admin (Gerenciar Usuários) */
+        .btn-admin {
+            background-color: #5f6368;
+        }
+        .btn-admin:hover {
+            background-color: #3c4043;
+            box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3);
+        }
+
+        /* CINZA CLARO (Logout) */
         .btn-secondary {
             background-color: #f8f9fa;
             color: #3c4043;
@@ -72,13 +81,23 @@
 </head>
 <body>
 
+    {% if pode_acessar_conversor %}
     <a href="{% url 'listar_funcionarios' %}" class="btn btn-primary">
         Gerenciar AFD
     </a>
+    {% endif %}
 
+    {% if pode_acessar_b75 %}
     <a href="{% url 'home_bingo' %}" class="btn btn-success" title="Acessar Sistema Bingo 75">
         75
     </a>
+    {% endif %}
+
+    {% if request.user.is_superuser %}
+    <a href="{% url 'gerenciar_usuarios' %}" class="btn btn-admin">
+        Gerenciar Usuários
+    </a>
+    {% endif %}
 
     <form action="{% url 'logout' %}" method="post">
         {% csrf_token %}
