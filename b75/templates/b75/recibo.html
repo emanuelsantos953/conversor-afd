@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Recibo de Pedido - Senha {{ senha }}</title>
+    <style>
+        /* Configurações para impressão térmica */
+        @page { size: 80mm auto; margin: 0; }
+        body { 
+            font-family: 'Courier New', Courier, monospace; 
+            width: 72mm; 
+            margin: 0 auto; 
+            padding: 10px; 
+            font-size: 12px; 
+            color: #000;
+        }
+        .centralizado { text-align: center; }
+        .negrito { font-weight: bold; }
+        .divisor { border-top: 1px dashed #000; margin: 10px 0; }
+        
+        .senha-box { 
+            border: 2px solid #000; 
+            padding: 10px; 
+            margin: 10px 0; 
+            font-size: 30px; 
+            font-weight: bold; 
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        .item-nome { text-align: left; }
+        .item-qtd { text-align: center; }
+        .item-preco { text-align: right; }
+
+        .serrilhado {
+            border-top: 2px dashed #000;
+            margin-top: 30px;
+            padding-top: 20px;
+            text-align: center;
+        }
+
+        /* Esconde botões na hora de imprimir */
+        @media print {
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body onload="window.print()">
+    
+    <div class="centralizado no-print">
+        <button onclick="window.print()" style="padding: 10px; margin-bottom: 20px;">Imprimir Novamente</button>
+        <button onclick="window.close()" style="padding: 10px; margin-bottom: 20px;">Fechar Janela</button>
+    </div>
+
+    <div class="centralizado">
+        <div style="font-size: 18px; font-weight: bold;">LOJINHA B75</div>
+        <div>{{ data|date:"d/m/Y H:i" }}</div>
+        <div class="divisor"></div>
+        <div>SENHA DO PEDIDO:</div>
+        <div class="senha-box">{{ senha }}</div>
+    </div>
+
+    <div style="margin-bottom: 10px;">
+        <strong>CLIENTE:</strong> {% if pedido.cliente %}{{ pedido.cliente.nome }}{% else %}BALCÃO{% endif %}<br>
+        <strong>PEDIDO:</strong> #{{ pedido.id }}
+    </div>
+
+    <div class="divisor"></div>
+
+    <table>
+        <thead>
+            <tr>
+                <th class="item-nome">Item</th>
+                <th class="item-qtd">Qtd</th>
+                <th class="item-preco">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in pedido.itens.all %}
+            <tr>
+                <td class="item-nome">{{ item.produto.nome }}</td>
+                <td class="item-qtd">{{ item.quantidade }}</td>
+                <td class="item-preco">R$ {{ item.preco_unitario }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="divisor"></div>
+
+    <div style="text-align: right; font-size: 16px;">
+        <strong>TOTAL: R$ {{ pedido.total }}</strong>
+    </div>
+    <div class="centralizado" style="margin-top: 10px;">
+        STATUS: {% if pedido.pago %}PAGO{% else %}PENDENTE{% endif %}
+    </div>
+
+    <div class="serrilhado">
+        <div>------------------------------</div>
+        <div style="font-size: 10px; margin-bottom: 5px;">DESTAQUE ESTA PARTE</div>
+        <div style="font-size: 14px;">SENHA DE ESPERA:</div>
+        <div style="font-size: 40px; font-weight: bold; margin: 10px 0;">{{ senha }}</div>
+        <div style="font-size: 12px;">{{ data|date:"H:i:s" }}</div>
+        <div>------------------------------</div>
+    </div>
+
+</body>
+</html>

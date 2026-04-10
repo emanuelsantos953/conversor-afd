@@ -18,11 +18,19 @@
         .back-link { display: inline-block; margin-bottom: 20px; color: #64748b; text-decoration: none; font-size: 1rem; max-width: 800px; margin-left: auto; margin-right: auto; display: block;}
         .back-link:hover { color: #0f172a; }
         h2 { text-align: center; color: #202124; }
-        
-        /* Classes para as mensagens (o VS Code não vai mais reclamar) */
         .msg-alert { padding: 10px; border-radius: 4px; text-align: center; margin-bottom: 10px; font-weight: 500; }
         .msg-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .msg-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .form-control { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        /* Estilos do Modal e do clique no nome */
+        .nome-clicavel { color: #1a73e8; cursor: pointer; text-decoration: underline; font-weight: bold;}
+        .nome-clicavel:hover { color: #174ea6; }
+        
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 500px; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .btn-fechar { position: absolute; right: 15px; top: 15px; cursor: pointer; font-size: 1.2rem; background: none; border: none; color: #666; font-weight: bold; }
+        .btn-fechar:hover { color: #000; }
     </style>
 </head>
 <body>
@@ -44,6 +52,8 @@
         <h3 style="margin-top: 0;">Novo Usuário</h3>
         <form method="post">
             {% csrf_token %}
+            <input type="hidden" name="acao" value="novo">
+            
             <div class="form-group">
                 <label>Nome de Usuário (Login):</label>
                 <input type="text" name="username" required>
@@ -63,6 +73,27 @@
                     <input type="checkbox" name="acesso_conversor" style="transform: scale(1.2); margin-right: 8px;"> 
                     Liberar acesso ao <b>Conversor AFD</b>
                 </label>
+
+                <hr style="border-top: 1px solid #ccc; margin: 15px 0;">
+                <div style="margin-bottom: 10px;">
+                    <strong>Validade da Licença (B75):</strong>
+                </div>
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <div>
+                        <label style="font-size: 0.9em; display: block; margin-bottom: 4px;">Data de Início:</label>
+                        <input type="date" name="inicio_licenca" class="form-control" style="width: 150px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.9em; display: block; margin-bottom: 4px;">Data de Fim:</label>
+                        <input type="date" name="fim_licenca" class="form-control" style="width: 150px;">
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <label style="cursor: pointer; display: flex; align-items: center;">
+                        <input type="checkbox" name="licenca_ilimitada" style="transform: scale(1.2); margin-right: 8px;">
+                        Acesso Ilimitado / Vitalício
+                    </label>
+                </div>
             </div>
             
             <button type="submit" class="btn" style="margin-top: 10px;">Cadastrar Usuário</button>
@@ -70,19 +101,30 @@
     </div>
 
     <div class="card">
-        <h3 style="margin-top: 0;">Usuários Cadastrados</h3>
+        <h3 style="margin-top: 0;">Usuários Cadastrados <small style="font-size: 0.8rem; color: #666; font-weight: normal; margin-left: 10px;">(Clique no nome para editar)</small></h3>
         <table>
             <thead>
                 <tr>
                     <th>Usuário</th>
                     <th>Acessos Liberados</th>
-                    <th>Status</th>
+                    <th>Status da Licença</th>
                 </tr>
             </thead>
             <tbody>
                 {% for u in usuarios %}
                 <tr>
-                    <td><b>{{ u.username }}</b></td>
+                    <td>
+                        <span class="nome-clicavel" 
+                              data-id="{{ u.id }}"
+                              data-username="{{ u.username }}"
+                              data-grupos="{{ u.groups.all|join:',' }}"
+                              data-inicio="{% if u.licenca_obj and u.licenca_obj.inicio %}{{ u.licenca_obj.inicio|date:'Y-m-d' }}{% endif %}"
+                              data-fim="{% if u.licenca_obj and u.licenca_obj.fim %}{{ u.licenca_obj.fim|date:'Y-m-d' }}{% endif %}"
+                              data-ilimitado="{% if u.licenca_obj and u.licenca_obj.ilimitado %}true{% else %}false{% endif %}"
+                              onclick="abrirModal(this)">
+                            {{ u.username }}
+                        </span>
+                    </td>
                     <td>
                         {% if u.is_superuser %}
                             <span class="badge badge-admin">Acesso Total (Administrador)</span>
@@ -95,10 +137,12 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if u.is_active %}
-                            <span style="color: #1e8e3e; font-weight: 500;">Ativo</span>
+                        {% if u.is_superuser %}
+                            <span style="color: #1e8e3e; font-weight: bold;">Ativo (Admin)</span>
+                        {% elif u.licenca_obj and u.licenca_obj.is_ativa %}
+                            <span style="color: #1e8e3e; font-weight: bold;">✅ Ativa</span>
                         {% else %}
-                            <span style="color: #d93025; font-weight: 500;">Bloqueado</span>
+                            <span style="color: #d93025; font-weight: bold;">❌ Expirada</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -106,5 +150,69 @@
             </tbody>
         </table>
     </div>
+
+    <div class="modal-overlay" id="modalEdicao">
+        <div class="modal-content">
+            <button class="btn-fechar" onclick="fecharModal()">✖</button>
+            <h3 style="margin-top: 0; color: #1a73e8;">Editar: <span id="editNomeUsuario"></span></h3>
+            
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="acao" value="editar">
+                <input type="hidden" name="user_id" id="editUserId">
+                
+                <div class="form-group" style="margin-top: 20px;">
+                    <label>Nova Senha (deixe em branco para não alterar):</label>
+                    <input type="password" name="senha">
+                </div>
+                
+                <div class="form-group" style="background: #f1f3f4; padding: 15px; border-radius: 6px; margin-top: 15px;">
+                    <p style="margin-top: 0; font-weight: bold; margin-bottom: 10px;">Permissões de Acesso:</p>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer;">
+                        <input type="checkbox" name="acesso_b75" id="editB75" style="transform: scale(1.2); margin-right: 8px;"> Bingo (B75)
+                    </label>
+                    <label style="display: block; margin-bottom: 15px; cursor: pointer;">
+                        <input type="checkbox" name="acesso_conversor" id="editConv" style="transform: scale(1.2); margin-right: 8px;"> Conversor AFD
+                    </label>
+    
+                    <hr style="border-top: 1px solid #ccc; margin: 15px 0;">
+                    <div style="margin-bottom: 10px;">
+                        <strong>Validade da Licença (B75):</strong>
+                    </div>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <div><label style="font-size: 0.9em; display: block; margin-bottom: 4px;">Início:</label><input type="date" name="inicio_licenca" id="editInicio" class="form-control" style="width: 140px;"></div>
+                        <div><label style="font-size: 0.9em; display: block; margin-bottom: 4px;">Fim:</label><input type="date" name="fim_licenca" id="editFim" class="form-control" style="width: 140px;"></div>
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <label style="cursor: pointer; display: flex; align-items: center;">
+                            <input type="checkbox" name="licenca_ilimitada" id="editIlimitado" style="transform: scale(1.2); margin-right: 8px;"> Acesso Ilimitado
+                        </label>
+                    </div>
+                </div>
+                <button type="submit" class="btn" style="background: #1a73e8; margin-top: 10px;">Salvar Alterações</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function abrirModal(elemento) {
+            document.getElementById('editUserId').value = elemento.getAttribute('data-id');
+            document.getElementById('editNomeUsuario').innerText = elemento.getAttribute('data-username');
+            
+            var grupos = elemento.getAttribute('data-grupos') || "";
+            document.getElementById('editB75').checked = grupos.includes('B75');
+            document.getElementById('editConv').checked = grupos.includes('Conversor');
+            
+            document.getElementById('editInicio').value = elemento.getAttribute('data-inicio');
+            document.getElementById('editFim').value = elemento.getAttribute('data-fim');
+            document.getElementById('editIlimitado').checked = (elemento.getAttribute('data-ilimitado') === 'true');
+            
+            document.getElementById('modalEdicao').style.display = 'flex';
+        }
+
+        function fecharModal() {
+            document.getElementById('modalEdicao').style.display = 'none';
+        }
+    </script>
 </body>
 </html>

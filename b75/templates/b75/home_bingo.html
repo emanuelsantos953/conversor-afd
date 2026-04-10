@@ -1,211 +1,97 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Bingo 75</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+{% extends 'b75/base_bingo.html' %}
+
+{% block title %}Início | Bingo B75{% endblock %}
+
+{% block content %}
+<style>
+    /* Estilos adaptados para o novo layout com Sidebar */
+    .card {
+        background-color: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        padding: 30px;
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto 40px auto;
+        border: 1px solid #e2e8f0;
+    }
+
+    .card-header { text-align: center; margin-bottom: 30px; }
+    .icon-hero { font-size: 4rem; color: #1a73e8; margin-bottom: 15px; }
+    h1 { font-size: 2rem; font-weight: 700; margin: 10px 0; color: #0f172a; }
+    .description { font-size: 1rem; color: #64748b; line-height: 1.6; }
+
+    .features-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+    @media(min-width: 768px) {
+        .features-grid { grid-template-columns: 1fr 1fr; gap: 20px 40px; }
+    }
+
+    .feature-item { display: flex; align-items: flex-start; font-size: 0.9rem; color: #334155; }
+    .feature-icon { color: #1a73e8; margin-right: 10px; font-size: 1.1rem; flex-shrink: 0; }
+
+    .how-it-works-title { font-size: 1.3rem; font-weight: 600; margin-bottom: 25px; text-align: center; color: #0f172a; }
     
-    <style>
-        body {
-            background-color: #f8f9fa; /* Fundo cinza bem claro */
-            font-family: 'Roboto', sans-serif;
-            color: #0f172a; /* Cor de texto escura (Slate-900) */
-            margin: 0;
-            padding: 40px 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+    .steps-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+        width: 100%;
+    }
+    @media(min-width: 768px) {
+        .steps-grid { grid-template-columns: 1fr 1fr 1fr; }
+    }
 
-        /* --- Componente: CARD --- */
-        .card {
-            background-color: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); /* Sombra suave */
-            padding: 30px;
-            width: 100%;
-            max-width: 800px;
-            margin-bottom: 40px;
-            border: 1px solid #e2e8f0;
-        }
+    .mini-card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .mini-card h3 { margin: 10px 0 8px; font-size: 1rem; }
+    .mini-card p { font-size: 0.85rem; color: #64748b; line-height: 1.4; }
+    .step-icon { font-size: 2rem; color: #1a73e8; }
+</style>
 
-        /* --- Header do Card Principal --- */
-        .card-header { text-align: center; margin-bottom: 30px; }
-        
-        .icon-hero { font-size: 5rem; color: #1a73e8; margin-bottom: 15px; } /* Ícone grande */
-        
-        h1 { font-size: 2.25rem; font-weight: 700; margin: 10px 0; letter-spacing: -0.025em; }
-        
-        .description { font-size: 1.1rem; color: #64748b; line-height: 1.6; }
-        .description strong { color: #0f172a; font-weight: 500; }
-
-        /* --- Lista de Funcionalidades (Grid) --- */
-        .features-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 15px;
-            margin-bottom: 40px;
-            text-align: left;
-        }
-        @media(min-width: 768px) {
-            .features-grid { grid-template-columns: 1fr 1fr; gap: 20px 40px; }
-        }
-
-        .feature-item { display: flex; align-items: flex-start; font-size: 0.95rem; color: #334155; }
-        .feature-icon { color: #1a73e8; margin-right: 10px; font-size: 1.2rem; flex-shrink: 0; margin-top: 2px;}
-
-        /* --- Botões de Ação --- */
-        .actions-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 15px;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 30px;
-        }
-        @media(min-width: 768px) {
-            .actions-grid { grid-template-columns: 1fr 1fr 1fr; }
-        }
-
-        .btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 16px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.2s;
-            font-size: 1rem;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        .btn i { margin-right: 8px; font-size: 1.2rem; }
-
-        .btn-primary { background-color: #0f172a; } /* Preto/Azul escuro estilo Shadcn */
-        .btn-primary:hover { background-color: #334155; transform: translateY(-2px); }
-
-        /* --- Seção "Como Funciona" --- */
-        .how-it-works-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 30px; text-align: center; }
-        
-        .steps-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-            width: 100%;
-            max-width: 900px;
-        }
-        @media(min-width: 768px) {
-            .steps-grid { grid-template-columns: 1fr 1fr 1fr; }
-        }
-
-        .mini-card {
-            background: white;
-            padding: 25px;
-            border-radius: 8px;
-            text-align: center;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        .mini-card h3 { margin: 15px 0 10px; font-size: 1.1rem; }
-        .mini-card p { font-size: 0.9rem; color: #64748b; line-height: 1.5; }
-        .step-icon { font-size: 2.5rem; color: #1a73e8; }
-
-        /* Botão Voltar flutuante discreto */
-        .back-link {
-            margin-top: 40px;
-            color: #64748b;
-            text-decoration: none;
-            font-size: 0.9rem;
-        }
-        .back-link:hover { color: #1a73e8; }
-
-    </style>
-</head>
-<body>
-
-    <div class="card">
-        <div class="card-header">
-            <i class="bi bi-ticket-perforated-fill icon-hero"></i>
-            <h1>Bem-vindo ao Meu Bingo 75!</h1>
-            <p class="description">
-                Sua plataforma completa para criar e gerenciar sorteios de bingo personalizados.<br>
-                <strong>Comece gratuitamente criando seu primeiro sorteio!</strong>
-            </p>
-        </div>
-
-        <div class="features-grid">
-            <div class="feature-item">
-                <i class="bi bi-list-ol feature-icon"></i>
-                <span>Criar e gerenciar sorteios de bingo com configurações personalizadas.</span>
-            </div>
-            <div class="feature-item">
-                <i class="bi bi-people-fill feature-icon"></i>
-                <span>Cadastrar clientes e adicioná-los facilmente aos seus sorteios.</span>
-            </div>
-            <div class="feature-item">
-                <i class="bi bi-grid-3x3 feature-icon"></i>
-                <span>Gerar cartelas de bingo únicas para participantes.</span>
-            </div>
-            <div class="feature-item">
-                <i class="bi bi-dice-5-fill feature-icon"></i>
-                <span>Realizar sorteios interativos com painel e animação.</span>
-            </div>
-            <div class="feature-item">
-                <i class="bi bi-cart-fill feature-icon"></i>
-                <span>Gerenciar catálogo de produtos e registrar vendas.</span>
-            </div>
-            <div class="feature-item">
-                <i class="bi bi-bar-chart-fill feature-icon"></i>
-                <span>Acompanhar histórico de vendas e resumo financeiro.</span>
-            </div>
-            <div class="feature-item">
-                <i class="bi bi-archive-fill feature-icon"></i>
-                <span>Fazer backup completo dos seus dados.</span>
-            </div>
-            <div class="feature-item">
-                <i class="bi bi-key-fill feature-icon"></i>
-                <span>Controle total de acesso e segurança.</span>
-            </div>
-        </div>
-
-        <div class="actions-grid">
-            <a href="{% url 'listar_sorteios' %}" class="btn btn-primary">
-                <i class="bi bi-list-ol"></i> Sorteios
-            </a>
-            
-            <a href="{% url 'gerenciar_clientes' %}" class="btn btn-primary" style="margin: 0 10px;">
-                <i class="bi bi-people-fill"></i> Clientes
-            </a>
-            
-            <a href="{% url 'gerenciar_produtos' %}" class="btn btn-primary">
-                <i class="bi bi-cart-fill"></i> Vendas
-            </a>
-        </div>
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-ticket-perforated-fill icon-hero"></i>
+        <h1>Painel Bingo 75</h1>
+        <p class="description">
+            Sua plataforma completa para gerenciar sorteios de bingo personalizados.
+        </p>
     </div>
 
-    <h2 class="how-it-works-title">Como Funciona</h2>
-    <div class="steps-grid">
-        <div class="mini-card">
-            <i class="bi bi-gear-fill step-icon"></i>
-            <h3>1. Configure</h3>
-            <p>Crie seu primeiro sorteio, cadastre participantes e configure as regras do seu bingo.</p>
-        </div>
-        <div class="mini-card">
-            <i class="bi bi-cart-check-fill step-icon"></i>
-            <h3>2. Venda & Gerencie</h3>
-            <p>Use a vitrine para vender produtos e cartelas, registrando tudo no sistema financeiro.</p>
-        </div>
-        <div class="mini-card">
-            <i class="bi bi-play-circle-fill step-icon"></i>
-            <h3>3. Execute o Sorteio</h3>
-            <p>Realize o sorteio com o globo virtual, projete o painel e acompanhe os ganhadores.</p>
-        </div>
+    <div class="features-grid">
+        <div class="feature-item"><i class="bi bi-check2-circle feature-icon"></i><span>Gerenciamento de sorteios ativos.</span></div>
+        <div class="feature-item"><i class="bi bi-check2-circle feature-icon"></i><span>Cadastro rápido de clientes.</span></div>
+        <div class="feature-item"><i class="bi bi-check2-circle feature-icon"></i><span>Geração de cartelas únicas.</span></div>
+        <div class="feature-item"><i class="bi bi-check2-circle feature-icon"></i><span>Venda de produtos via PDV integrado.</span></div>
     </div>
+</div>
 
-    <a href="/" class="back-link">← Voltar para o Menu Principal</a>
-
-</body>
-</html>
+<h2 class="how-it-works-title">Fluxo do Sistema</h2>
+<div class="steps-grid">
+    <div class="mini-card">
+        <i class="bi bi-gear-fill step-icon"></i>
+        <h3>1. Configure</h3>
+        <p>Crie sorteios e cadastre os participantes.</p>
+    </div>
+    <div class="mini-card">
+        <i class="bi bi-cart-check-fill step-icon"></i>
+        <h3>2. Gerencie</h3>
+        <p>Venda produtos e cartelas no PDV.</p>
+    </div>
+    <div class="mini-card">
+        <i class="bi bi-play-circle-fill step-icon"></i>
+        <h3>3. Sorteie</h3>
+        <p>Realize o sorteio e acompanhe os ganhadores.</p>
+    </div>
+</div>
+{% endblock %}

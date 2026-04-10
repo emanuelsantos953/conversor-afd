@@ -2,18 +2,22 @@ import pandas as pd
 import csv
 import io
 import json
-import time # Para dar um efeito visual (opcional)
+import time 
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group
 from django.contrib import messages
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from .forms import FuncionarioForm
 from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada
 from django.db import IntegrityError
-from django.db.models import Q  # <--- IMPORTANTE: Nova ferramenta para busca avançada (OU)
+from django.db.models import Q  
 from datetime import datetime, date
 import calendar
+
+# NOVAS IMPORTAÇÕES PARA A LICENÇA
+from django.utils.timezone import make_aware
+from b75.models import LicencaUsuario
 
 # ==========================================
 # CONTROLE DE ACESSOS E MENU PRINCIPAL
@@ -26,36 +30,100 @@ def is_admin(user):
 @user_passes_test(is_admin)
 def gerenciar_usuarios(request):
     if request.method == 'POST':
+        acao = request.POST.get('acao', 'novo')
         username = request.POST.get('username')
         senha = request.POST.get('senha')
         acesso_b75 = request.POST.get('acesso_b75') == 'on'
         acesso_conversor = request.POST.get('acesso_conversor') == 'on'
+        
+        inicio_licenca_str = request.POST.get('inicio_licenca')
+        fim_licenca_str = request.POST.get('fim_licenca')
+        ilimitado = request.POST.get('licenca_ilimitada') == 'on'
 
-        if User.objects.filter(username=username).exists():
-            messages.error(request, f'O usuário {username} já existe!')
-        else:
-            # Cria o usuário com a senha criptografada
-            user = User.objects.create_user(username=username, password=senha)
+        # ==========================================
+        # MODO EDIÇÃO DE USUÁRIO
+        # ==========================================
+        if acao == 'editar':
+            user_id = request.POST.get('user_id')
+            usuario_edit = get_object_or_404(User, id=user_id)
             
-            # Cria os grupos automaticamente caso não existam e adiciona o usuário
-            if acesso_b75:
-                grupo_b75, _ = Group.objects.get_or_create(name='B75')
-                user.groups.add(grupo_b75)
-            if acesso_conversor:
-                grupo_conv, _ = Group.objects.get_or_create(name='Conversor')
-                user.groups.add(grupo_conv)
+            grupo_b75, _ = Group.objects.get_or_create(name='B75')
+            grupo_conv, _ = Group.objects.get_or_create(name='Conversor')
+            
+            # Atualiza os acessos
+            if acesso_b75: usuario_edit.groups.add(grupo_b75)
+            else: usuario_edit.groups.remove(grupo_b75)
                 
-            messages.success(request, f'Usuário {username} criado com sucesso!')
+            if acesso_conversor: usuario_edit.groups.add(grupo_conv)
+            else: usuario_edit.groups.remove(grupo_conv)
+            
+            # Atualiza a senha APENAS se o campo não estiver em branco
+            if senha:
+                usuario_edit.set_password(senha)
+                usuario_edit.save()
+                
+            # Atualiza a Licença
+            try:
+                licenca = LicencaUsuario.objects.get(usuario=usuario_edit)
+            except LicencaUsuario.DoesNotExist:
+                licenca = LicencaUsuario(usuario=usuario_edit)
+                
+            licenca.ilimitado = ilimitado
+            if inicio_licenca_str:
+                licenca.inicio = make_aware(datetime.strptime(inicio_licenca_str, '%Y-%m-%d'))
+            if fim_licenca_str:
+                dt_fim = datetime.strptime(fim_licenca_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+                licenca.fim = make_aware(dt_fim)
+                
+            licenca.save()
+            messages.success(request, f'Dados de {usuario_edit.username} atualizados!')
             return redirect('gerenciar_usuarios')
 
-    # Busca todos os usuários para listar na tela
-    usuarios = User.objects.all().prefetch_related('groups')
+        # ==========================================
+        # MODO CRIAÇÃO DE USUÁRIO NOVO
+        # ==========================================
+        elif acao == 'novo':
+            if User.objects.filter(username=username).exists():
+                messages.error(request, f'O usuário {username} já existe!')
+            else:
+                user = User.objects.create_user(username=username, password=senha)
+                
+                if acesso_b75:
+                    grupo_b75, _ = Group.objects.get_or_create(name='B75')
+                    user.groups.add(grupo_b75)
+                if acesso_conversor:
+                    grupo_conv, _ = Group.objects.get_or_create(name='Conversor')
+                    user.groups.add(grupo_conv)
+                    
+                try:
+                    licenca = LicencaUsuario.objects.get(usuario=user)
+                except LicencaUsuario.DoesNotExist:
+                    licenca = LicencaUsuario(usuario=user)
+
+                licenca.ilimitado = ilimitado
+                if inicio_licenca_str:
+                    licenca.inicio = make_aware(datetime.strptime(inicio_licenca_str, '%Y-%m-%d'))
+                if fim_licenca_str:
+                    dt_fim = datetime.strptime(fim_licenca_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+                    licenca.fim = make_aware(dt_fim)
+                licenca.save()
+                
+                messages.success(request, f'Usuário {username} criado com sucesso!')
+                return redirect('gerenciar_usuarios')
+
+    # SOLUÇÃO PARA O ERRO 1146 (Bancos de dados diferentes)
+    # Busca os usuários e as licenças de forma isolada e junta no Python!
+    usuarios = list(User.objects.all().prefetch_related('groups'))
+    licencas = LicencaUsuario.objects.all()
+    mapa_licencas = {lic.usuario_id: lic for lic in licencas}
     
+    for u in usuarios:
+        u.licenca_obj = mapa_licencas.get(u.id)
+
     return render(request, 'core/gerenciar_usuarios.html', {'usuarios': usuarios})
 
 @login_required
 def home(request):
-    # Verifica permissões para os botões do Menu Principal
     pode_acessar_b75 = request.user.is_superuser or request.user.groups.filter(name='B75').exists()
     pode_acessar_conversor = request.user.is_superuser or request.user.groups.filter(name='Conversor').exists()
 
@@ -77,7 +145,6 @@ def cadastrar_funcionario(request):
             form.save()
             return redirect('listar_funcionarios')
     else:
-        # Agora ele preenche automático se vier PIS ou Matrícula na URL!
         pis_pre = request.GET.get('pis', '')
         matricula_pre = request.GET.get('matricula', '')
         form = FuncionarioForm(initial={'pis': pis_pre, 'matricula': matricula_pre})
@@ -86,15 +153,12 @@ def cadastrar_funcionario(request):
 
 @login_required
 def listar_funcionarios(request):
-    # Se a requisição tiver parâmetros de busca (vinda do Javascript)
     if 'q' in request.GET or 'grupo' in request.GET:
         query = request.GET.get('q', '').strip()
         grupo = request.GET.get('grupo', '').strip()
 
-        # Começa buscando todos
         resultados = Funcionario.objects.all()
 
-        # 1. Filtro de Texto (Nome OU Matrícula OU PIS OU CPF)
         if len(query) >= 3:
             resultados = resultados.filter(
                 Q(nome_completo__icontains=query) |
@@ -103,15 +167,12 @@ def listar_funcionarios(request):
                 Q(cpf__icontains=query)
             )
 
-        # 2. Filtro de Grupo (Se escolheu algum no Dropdown)
         if grupo:
             resultados = resultados.filter(grupo_ponto=grupo)
 
-        # Se não tem query válida nem grupo, não retorna nada
         if len(query) < 3 and not grupo:
             return JsonResponse({'funcionarios': []})
 
-        # Monta a lista para enviar ao Javascript (limitado a 100 para não travar a tela)
         dados = []
         for func in resultados[:100]:
             dados.append({
@@ -124,7 +185,6 @@ def listar_funcionarios(request):
             })
         return JsonResponse({'funcionarios': dados})
 
-    # Se for apenas carregar a página inteira, envia a lista de grupos para o Dropdown
     grupos_existentes = Funcionario.objects.exclude(grupo_ponto__isnull=True).exclude(grupo_ponto__exact='').values_list('grupo_ponto', flat=True).distinct()
     
     return render(request, 'core/listar.html', {'grupos': grupos_existentes})
@@ -133,15 +193,11 @@ def listar_funcionarios(request):
 def salvar_grupo(request):
     if request.method == 'POST':
         try:
-            # Lê os dados enviados pelo JavaScript
             dados = json.loads(request.body)
             funcionario_id = dados.get('funcionario_id')
             novo_grupo = dados.get('grupo')
             
-            # Busca o funcionário e atualiza o grupo
             funcionario = Funcionario.objects.get(id=funcionario_id)
-            
-            # Se a pessoa apagar o texto, salva como None (vazio no banco)
             funcionario.grupo_ponto = novo_grupo if novo_grupo.strip() else None
             funcionario.save()
             
@@ -160,24 +216,19 @@ def salvar_grupo(request):
 def ver_ponto(request, funcionario_id):
     funcionario = Funcionario.objects.get(id=funcionario_id)
 
-    # Pega o ano e mês da URL (se não tiver, usa o mês atual)
     hoje = date.today()
     ano = int(request.GET.get('ano', hoje.year))
     mes = int(request.GET.get('mes', hoje.month))
 
-    # Descobre quantos dias tem o mês selecionado
     _, num_dias = calendar.monthrange(ano, mes)
 
-    # Busca se já tem batidas salvas no banco para esse mês
     registros = RegistroPonto.objects.filter(
         funcionario=funcionario, 
         data__year=ano, 
         data__month=mes
     )
-    # Cria um dicionário para achar rápido: {1: registro_do_dia_1, ...}
     registros_dict = {reg.data.day: reg for reg in registros}
 
-    # Monta a lista completa com todos os dias do mês
     dias_do_mes = []
     dias_semana = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
 
@@ -197,7 +248,7 @@ def ver_ponto(request, funcionario_id):
         'funcionario': funcionario,
         'ano_selecionado': ano,
         'mes_selecionado': mes,
-        'anos': range(2020, 2031), # Opções da caixa de seleção
+        'anos': range(2020, 2031), 
         'meses': range(1, 13),
         'dias_do_mes': dias_do_mes,
     }
@@ -207,18 +258,15 @@ def ver_ponto(request, funcionario_id):
 def salvar_ponto(request):
     if request.method == 'POST':
         try:
-            # Lê os dados enviados pelo JavaScript
             dados = json.loads(request.body)
             funcionario_id = dados.get('funcionario_id')
             data_iso = dados.get('data')
 
-            # Função auxiliar para transformar vazio ("") em Nulo (None)
             def limpar_hora(hora):
                 return hora if hora else None
 
             funcionario = Funcionario.objects.get(id=funcionario_id)
 
-            # O 'update_or_create' é mágico: Se não existir ponto no dia, ele cria. Se existir, ele atualiza!
             RegistroPonto.objects.update_or_create(
                 funcionario=funcionario,
                 data=data_iso,
@@ -251,13 +299,10 @@ def importar_afd(request):
         grupo_ponto = request.POST.get('grupo_ponto')
         
         if arquivo:
-            # Precisamos ler o arquivo todo para a memória antes de iniciar o stream
             conteudo = arquivo.read().decode('utf-8', errors='ignore')
             linhas = conteudo.splitlines()
 
-            # Esta é a função geradora que vai "cuspir" as linhas para o navegador
             def stream_processamento():
-                # 1. Envia o Cabeçalho HTML e Estilo (Tela Preta estilo Terminal)
                 yield """
                 <html>
                 <head>
@@ -278,9 +323,6 @@ def importar_afd(request):
                 """
                 
                 pis_desconhecidos = set()
-                total_linhas = len(linhas)
-                processados = 0
-                
                 dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
                 funcionarios_atualizados = []
 
@@ -292,34 +334,28 @@ def importar_afd(request):
                     if linha.startswith('000000000') or len(linha) < 34:
                         continue
 
-                    # Apenas processa registros de ponto (Tipo 3)
                     if linha[9] == '3':
                         msg_log = ""
                         status_css = "info"
                         
                         try:
-                            # === DETECTOR DE FORMATO ===
                             if linha[14] == '-': 
-                                # NOVO
                                 data_txt = linha[10:20]
                                 hora_txt = linha[21:26]
                                 identificador_txt = linha[34:45]
                                 data_batida = datetime.strptime(data_txt, '%Y-%m-%d').date()
                                 hora_batida = datetime.strptime(hora_txt, '%H:%M').time()
                             else:
-                                # LEGADO
                                 data_txt = linha[10:18]
                                 hora_txt = linha[18:22]
                                 identificador_txt = linha[23:34]
                                 data_batida = datetime.strptime(data_txt, '%d%m%Y').date()
                                 hora_batida = datetime.strptime(hora_txt, '%H%M').time()
 
-                            # Verifica se está na lista negra
                             if PisIgnorado.objects.filter(pis=identificador_txt).exists():
                                 yield f"<div class='log-line warning'>[IGNORADO] PIS/CPF {identificador_txt} está na lista negra.</div>"
                                 continue
 
-                            # Busca Funcionário
                             funcionario = Funcionario.objects.filter(pis=identificador_txt).first()
                             if not funcionario:
                                 funcionario = Funcionario.objects.filter(cpf=identificador_txt).first()
@@ -328,14 +364,12 @@ def importar_afd(request):
                                 msg_log = f"[SUCESSO] {funcionario.nome_completo} - {data_batida} às {hora_batida}"
                                 status_css = "success"
 
-                                # Atualiza Grupo
                                 if grupo_ponto and funcionario.id not in funcionarios_atualizados:
                                     funcionario.grupo_ponto = grupo_ponto
                                     funcionario.save()
                                     funcionarios_atualizados.append(funcionario.id)
                                     msg_log += " (Grupo Atualizado)"
 
-                                # Salva Ponto
                                 registro, created = RegistroPonto.objects.get_or_create(
                                     funcionario=funcionario,
                                     data=data_batida,
@@ -353,7 +387,6 @@ def importar_afd(request):
                                         batidas_existentes.append(hora_batida)
                                         batidas_existentes.sort()
                                         
-                                        # Reorganiza
                                         registro.entrada_1 = batidas_existentes[0] if len(batidas_existentes) > 0 else None
                                         registro.saida_1 = batidas_existentes[1] if len(batidas_existentes) > 1 else None
                                         registro.entrada_2 = batidas_existentes[2] if len(batidas_existentes) > 2 else None
@@ -372,14 +405,10 @@ def importar_afd(request):
                             msg_log = f"[ERRO DE LEITURA] Linha {i}: {str(e)}"
                             status_css = "error"
 
-                        # ENVIA A LINHA PROCESSADA PARA A TELA IMEDIATAMENTE
                         yield f"<div class='log-line {status_css}'>{msg_log}</div>"
-                        
-                        # Auto-scroll para baixo via Javascript injetado
                         yield "<script>window.scrollTo(0, document.body.scrollHeight);</script>"
 
-                # FIM DO PROCESSO
-                yield "</div>" # fecha div terminal
+                yield "</div>" 
                 
                 if pis_desconhecidos:
                     yield "<div class='summary error'>⚠️ Foram encontrados PIS/CPFs desconhecidos!</div>"
@@ -394,7 +423,6 @@ def importar_afd(request):
                 yield f"<br><a href='/gerenciar/' class='btn'>Voltar para Funcionários</a>"
                 yield "</body></html>"
 
-            # Retorna o Stream em vez de uma página estática
             return StreamingHttpResponse(stream_processamento())
 
     return render(request, 'core/importar_afd.html')
@@ -418,14 +446,12 @@ def exportar_afd(request):
         data_fim = request.POST.get('data_fim')
         tipo = request.POST.get('tipo_exportacao')
         
-        # 1. Filtra os registros com base nas datas escolhidas
         filtros = {}
         if data_inicio:
             filtros['data__gte'] = data_inicio
         if data_fim:
             filtros['data__lte'] = data_fim
 
-        # 2. Aplica o filtro de Grupo ou Funcionário, se selecionado
         if tipo == 'grupo':
             grupo = request.POST.get('grupo')
             if grupo:
@@ -435,11 +461,8 @@ def exportar_afd(request):
             if func_id:
                 filtros['funcionario__id'] = func_id
 
-        # Faz a busca no banco de dados
         registros = RegistroPonto.objects.filter(**filtros)
 
-        # 3. Desmonta as batidas diárias em batidas individuais
-        # Cria uma lista de tuplas: (data, hora, pis)
         batidas = []
         for reg in registros:
             pis = reg.funcionario.pis
@@ -449,32 +472,24 @@ def exportar_afd(request):
                 if hora:
                     batidas.append((data_batida, hora, pis))
         
-        # 4. Ordena tudo cronologicamente (Primeiro por Data, depois por Hora)
         batidas.sort(key=lambda x: (x[0], x[1]))
 
-        # 5. Monta o arquivo texto
         linhas_arquivo = []
-        
-        # Cabeçalho Fixo (exatamente como você mandou)
         linhas_arquivo.append("00000000011466342180001070000000000000PREFEITURA DE TAQUARITUBA                                                                                                   AYSE090514002025-04-102025-08-01010820250721000020272301072025044801902610592719dc")
         
-        nsr = 1 # Número Sequencial de Registro
+        nsr = 1 
         for b in batidas:
             data_str = b[0].strftime('%d%m%Y')
             hora_str = b[1].strftime('%H%M')
-            pis_str = str(b[2]).zfill(11) # Garante que o PIS tenha 11 dígitos
-            nsr_str = str(nsr).zfill(9)   # Garante que o NSR tenha 9 dígitos
+            pis_str = str(b[2]).zfill(11) 
+            nsr_str = str(nsr).zfill(9)   
             
-            # Formata a linha conforme o mapeamento que você fez: NSR + '3' + DATA + HORA + '0' + PIS
             linha = f"{nsr_str}3{data_str}{hora_str}0{pis_str}"
             linhas_arquivo.append(linha)
             nsr += 1
         
-        # Rodapé Fixo (conforme você mandou)
         linhas_arquivo.append("99999999900000000000000110300000000000000000009")
 
-        # 6. Prepara a resposta para Download
-        # Usa \r\n para pular linha mantendo a compatibilidade do Bloco de Notas (Windows)
         conteudo = '\r\n'.join(linhas_arquivo) 
         
         response = HttpResponse(conteudo, content_type='text/plain')
@@ -482,8 +497,6 @@ def exportar_afd(request):
         
         return response
 
-    # Se for GET (Apenas abrindo a página), pega os dados para o formulário
-    # Busca apenas os grupos que não estão vazios
     grupos = Funcionario.objects.exclude(grupo_ponto__isnull=True).exclude(grupo_ponto__exact='').values_list('grupo_ponto', flat=True).distinct()
     funcionarios = Funcionario.objects.all().order_by('nome_completo')
     
@@ -510,9 +523,7 @@ def importar_funcionarios(request):
                     pis_txt = linhas_limpas[i+2]
                     cpf_txt = linhas_limpas[i+3]
                     
-                    # 1. Verifica se a matrícula já existe
                     if not Funcionario.objects.filter(matricula=matricula_txt).exists():
-                        # 2. Tenta salvar. Se esbarrar em um PIS ou CPF repetido, ele cai no "except"
                         try:
                             Funcionario.objects.create(
                                 matricula=matricula_txt,
@@ -521,7 +532,6 @@ def importar_funcionarios(request):
                                 cpf=cpf_txt
                             )
                         except IntegrityError:
-                            # Se der erro de banco de dados (dado duplicado), apenas ignora e continua o loop
                             pass
             
             return redirect('listar_funcionarios')
@@ -536,34 +546,23 @@ def importar_planilha(request):
         
         if arquivo:
             try:
-                # O Pandas é mágico! Ele lê o arquivo direto da memória.
-                # dtype=str garante que ele não apague os zeros à esquerda das matrículas
                 df = pd.read_excel(arquivo, dtype=str)
-                
             except Exception as e:
-                # Se der erro no Excel, pode ser que o usuário mandou um CSV mesmo. O Pandas lê também!
                 print(f"Tentando ler como CSV... Erro anterior: {e}")
                 arquivo.seek(0)
                 df = pd.read_csv(arquivo, sep=None, engine='python', dtype=str)
 
-            # Limpa espaços em branco dos nomes das colunas
             df.columns = df.columns.str.strip()
-            
-            # Converte a tabela perfeita em uma lista de dicionários para lermos
             linhas = df.to_dict('records')
 
             dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
             funcionarios_atualizados = []
             matriculas_desconhecidas = set()
 
-            print(f"\n--- INICIANDO IMPORTAÇÃO EXCEL/CSV (Colunas: {list(df.columns)}) ---")
-
             for linha in linhas:
-                # Pega a Matrícula e Hora e garante que são textos limpos
                 matricula_txt = str(linha.get('ID', '')).strip()
                 hora_completa_txt = str(linha.get('Hora', '')).strip()
 
-                # O Pandas preenche células vazias com a palavra 'nan' (Not a Number), então pulamos elas
                 if not matricula_txt or matricula_txt == 'nan' or not hora_completa_txt or hora_completa_txt == 'nan':
                     continue
                     
@@ -571,23 +570,17 @@ def importar_planilha(request):
                     continue
                     
                 try:
-                    # Formato 1: DD/MM/YYYY HH:MM:SS (Padrão BR)
                     dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M:%S')
                 except ValueError:
                     try:
-                        # Formato 2: DD/MM/YYYY HH:MM
                         dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M')
                     except ValueError:
                         try:
-                            # Formato 3: YYYY/MM/DD HH:MM:SS (O formato que deu erro)
                             dt_obj = datetime.strptime(hora_completa_txt, '%Y/%m/%d %H:%M:%S')
                         except ValueError:
                             try:
-                                # Formato 4: YYYY/MM/DD HH:MM
                                 dt_obj = datetime.strptime(hora_completa_txt, '%Y/%m/%d %H:%M')
                             except ValueError:
-                                # Se não for nenhum dos 4, aí sim ele ignora
-                                print(f"Formato de data inválido ignorado: {hora_completa_txt}")
                                 continue
                         
                 data_batida = dt_obj.date()
@@ -596,8 +589,6 @@ def importar_planilha(request):
                 funcionario = Funcionario.objects.filter(matricula=matricula_txt).first()
                 
                 if funcionario:
-                    print(f"Salvo: {funcionario.nome_completo} - {data_batida} às {hora_batida}")
-                    
                     if grupo_ponto and funcionario.id not in funcionarios_atualizados:
                         funcionario.grupo_ponto = grupo_ponto
                         funcionario.save()
@@ -632,8 +623,6 @@ def importar_planilha(request):
                 else:
                     matriculas_desconhecidas.add(matricula_txt)
 
-            print("--- FIM DA IMPORTAÇÃO ---\n")
-            
             if matriculas_desconhecidas:
                 return render(request, 'core/importar_planilha.html', {
                     'alerta_matricula': True,

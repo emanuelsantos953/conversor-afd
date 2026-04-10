@@ -1,0 +1,91 @@
+{% extends 'b75/base_bingo.html' %}
+
+{% block title %}Histórico de Recebimentos | B75{% endblock %}
+
+{% block content %}
+<style>
+    .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .card { background: white; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; }
+    .filter-bar { background: white; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 24px; display: grid; grid-template-columns: 2fr 1fr auto; gap: 15px; align-items: end; }
+    
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 12px; color: #64748b; font-size: 0.8rem; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; }
+    td { padding: 14px 12px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+    
+    .form-control { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
+    .btn-filter { background: #0f172a; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; height: 42px; }
+    
+    .badge-metodo { background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .total-footer { background: #f8fafc; padding: 15px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; align-items: center; gap: 15px; }
+</style>
+
+<div class="header-section">
+    <h1 style="margin:0"><i class="bi bi-clock-history"></i> Histórico de Recebimentos</h1>
+    <div style="text-align: right;">
+        <span style="color: #64748b; font-size: 0.9rem;">Total Recebido (Filtro):</span>
+        <div style="font-size: 1.5rem; font-weight: bold; color: #16a34a;">R$ {{ total_recebido|floatformat:2 }}</div>
+    </div>
+</div>
+
+<form method="get" class="filter-bar">
+    <div>
+        <label style="display:block; font-size: 0.8rem; font-weight: 600; margin-bottom: 5px;">BUSCAR CLIENTE / COMANDA / ID:</label>
+        <input type="text" name="q" class="form-control" placeholder="Ex: Nome do cliente, nº da comanda ou #ID..." value="{{ search_query }}">
+    </div>
+    <div>
+        <label style="display:block; font-size: 0.8rem; font-weight: 600; margin-bottom: 5px;">MÉTODO:</label>
+        <select name="metodo" class="form-control">
+            <option value="">Todos os métodos</option>
+            {% for m in metodos %}
+                <option value="{{ m }}" {% if metodo_filtro == m %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn-filter"><i class="bi bi-funnel"></i> Filtrar</button>
+</form>
+
+<div class="card">
+    <div style="overflow-x: auto;">
+        <table cellspacing="0">
+            <thead>
+                <tr>
+                    <th style="padding-left: 20px;">Data/Hora</th>
+                    <th>Pedido</th>
+                    <th>Cliente / Comanda</th>
+                    <th>Método</th>
+                    <th style="text-align: right; padding-right: 20px;">Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pedidos %}
+                <tr>
+                    <td style="padding-left: 20px;">{{ p.data_pedido|date:"d/m/Y - H:i" }}</td>
+                    <td><span style="color: #64748b;">#{{ p.id }}</span></td>
+                    <td>
+                        <strong>{% if p.cliente %}{{ p.cliente.nome }}{% else %}Balcão{% endif %}</strong>
+                        {% if p.cliente.comanda %}
+                            <small style="color: #64748b;"> | Comanda: {{ p.cliente.comanda }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge-metodo">
+                            <i class="bi bi-credit-card-2-front"></i> {{ p.metodo_pagamento|default:"Não informado" }}
+                        </span>
+                    </td>
+                    <td style="text-align: right; padding-right: 20px; font-weight: bold; color: #0f172a;">
+                        R$ {{ p.total|floatformat:2 }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 60px; color: #94a3b8;">
+                        <i class="bi bi-search" style="font-size: 3rem; display: block; margin-bottom: 10px;"></i>
+                        Nenhum pagamento encontrado com os filtros aplicados.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

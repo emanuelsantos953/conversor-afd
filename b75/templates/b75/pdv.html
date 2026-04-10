@@ -1,0 +1,282 @@
+{% extends 'b75/base_bingo.html' %}
+
+{% block title %}PDV | Lojinha B75{% endblock %}
+
+{% block content %}
+<style>
+    /* Ajustes para o layout do PDV dentro do container principal */
+    .pdv-container { 
+        display: grid; 
+        grid-template-columns: 1.8fr 1.2fr; 
+        gap: 20px; 
+        height: calc(100vh - 100px); /* Ajusta altura para caber na tela com o padding da base */
+    }
+    
+    .produtos-section, .carrinho-section { 
+        background: white; 
+        border-radius: 8px; 
+        padding: 20px; 
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); 
+        display: flex; 
+        flex-direction: column; 
+        border: 1px solid #e2e8f0;
+    }
+    
+    /* Grid de Produtos */
+    .produtos-grid { 
+        display: grid; 
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); 
+        gap: 15px; 
+        overflow-y: auto; 
+        padding-right: 5px; 
+        margin-top: 15px; 
+    }
+    
+    .produto-card { 
+        border: 1px solid #e2e8f0; 
+        border-radius: 8px; 
+        padding: 12px; 
+        text-align: center; 
+        cursor: pointer; 
+        transition: 0.2s; 
+        background: #fff; 
+        user-select: none; 
+    }
+    .produto-card:hover { border-color: #3b82f6; transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2); }
+    .produto-nome { font-weight: bold; margin-bottom: 5px; font-size: 1rem; color: #0f172a; }
+    .produto-preco { color: #16a34a; font-weight: bold; font-size: 1.1rem; }
+    .produto-estoque { font-size: 0.75rem; color: #64748b; margin-top: 5px; background: #f1f5f9; padding: 3px; border-radius: 4px; display: inline-block;}
+    
+    /* Área do Carrinho */
+    .carrinho-lista { flex: 1; overflow-y: auto; margin: 15px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
+    .carrinho-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+    .carrinho-item-info { flex: 2; }
+    .carrinho-item-controles { display: flex; align-items: center; gap: 8px; }
+    
+    .btn-qtd { background: #e2e8f0; border: none; border-radius: 4px; width: 28px; height: 28px; font-weight: bold; cursor: pointer; }
+    .btn-qtd:hover { background: #cbd5e1; }
+    
+    .total-container { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
+    .total-texto { font-size: 1.5rem; font-weight: bold; display: flex; justify-content: space-between; color: #0f172a; }
+    
+    .form-control { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 12px; box-sizing: border-box; font-size: 0.95rem; }
+    
+    .btn-finalizar { background: #16a34a; color: white; border: none; padding: 14px; border-radius: 6px; width: 100%; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .btn-finalizar:hover { background: #15803d; }
+    .btn-finalizar:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    /* Dropdown de Busca Inteligente */
+    .search-dropdown-container { position: relative; margin-bottom: 15px; }
+    .search-dropdown-list { display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #cbd5e1; border-radius: 6px; z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: -10px; }
+    .dropdown-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+    .dropdown-item:hover { background: #f8fafc; }
+    .btn-limpar-cliente { display: none; position: absolute; right: 10px; top: 10px; background: none; border: none; font-size: 1.1rem; color: #ef4444; cursor: pointer; }
+</style>
+
+<div class="pdv-container">
+    <div class="produtos-section">
+        <h2 style="margin: 0 0 15px 0;"><i class="bi bi-shop"></i> Frente de Caixa</h2>
+        <input type="text" id="buscaProduto" class="form-control" placeholder="🔍 Buscar produto..." onkeyup="filtrarProdutos()">
+        
+        <div class="produtos-grid" id="gridProdutos">
+            {% for produto in produtos %}
+                <div class="produto-card" onclick="adicionarAoCarrinho('{{ produto.id }}', '{{ produto.nome|escapejs }}', '{{ produto.preco }}', '{{ produto.estoque }}')">
+                    <div class="produto-nome">{{ produto.nome }}</div>
+                    <div class="produto-preco">R$ {{ produto.preco|floatformat:2 }}</div>
+                    <div class="produto-estoque"><i class="bi bi-box-seam"></i> {{ produto.estoque }} un</div>
+                </div>
+            {% empty %}
+                <p style="color: #64748b; padding: 20px;">Nenhum produto em estoque.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="carrinho-section">
+        <h3 style="margin-top: 0;"><i class="bi bi-cart4"></i> Pedido</h3>
+        
+        <div class="carrinho-lista" id="listaCarrinho">
+            <div style="text-align: center; color: #94a3b8; margin-top: 40px;">
+                <i class="bi bi-basket" style="font-size: 2.5rem;"></i>
+                <p>Carrinho vazio</p>
+            </div>
+        </div>
+
+        <div class="total-container">
+            <div class="total-texto">
+                <span>Total:</span>
+                <span id="valorTotal">R$ 0,00</span>
+            </div>
+        </div>
+
+        <form id="formCheckout">
+            {% csrf_token %}
+            <label style="font-weight: 500; font-size: 0.85rem; display: block; margin-bottom: 5px;">Cliente / Comanda:</label>
+            
+            <div class="search-dropdown-container">
+                <input type="text" id="buscaClienteInput" class="form-control" placeholder="Nome ou nº..." autocomplete="off" onkeyup="filtrarClientes()" onfocus="mostrarListaClientes()">
+                <input type="hidden" id="clienteSelect" value="">
+                <button type="button" id="limparClienteBtn" class="btn-limpar-cliente" onclick="limparCliente()"><i class="bi bi-x-circle-fill"></i></button>
+
+                <div id="listaClientesDropdown" class="search-dropdown-list">
+                    <div class="dropdown-item" onclick="selecionarCliente('', '')" style="color: #64748b; font-style: italic;">
+                        -- Cliente Balcão --
+                    </div>
+                    {% for cliente in clientes %}
+                        <div class="dropdown-item cliente-item"
+                             data-nome="{{ cliente.nome|lower }}"
+                             data-comanda="{% if cliente.comanda %}{{ cliente.comanda|lower }}{% endif %}"
+                             onclick="selecionarCliente('{{ cliente.id }}', '{{ cliente.nome|escapejs }}')">
+                            <strong>{{ cliente.nome }}</strong>
+                            {% if cliente.comanda %} | Comanda: {{ cliente.comanda }}{% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 8px; padding: 8px; background: #dcfce7; border-radius: 6px; border: 1px solid #bbf7d0;">
+                <input type="checkbox" id="pagoCheckbox" style="width: 18px; height: 18px; cursor: pointer;">
+                <label for="pagoCheckbox" style="font-weight: bold; color: #166534; cursor: pointer; font-size: 0.9rem;">Pedido PAGO</label>
+            </div>
+
+            <button type="button" id="btnFinalizar" class="btn-finalizar" onclick="finalizarVenda()" disabled>
+                Finalizar e Imprimir
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    let carrinho = []; 
+
+    function atualizarCarrinhoHTML() {
+        const lista = document.getElementById('listaCarrinho');
+        const btnFinalizar = document.getElementById('btnFinalizar');
+        let total = 0;
+
+        if (carrinho.length === 0) {
+            lista.innerHTML = `<div style="text-align: center; color: #94a3b8; margin-top: 40px;"><p>Carrinho vazio</p></div>`;
+            document.getElementById('valorTotal').innerText = 'R$ 0,00';
+            btnFinalizar.disabled = true;
+            return;
+        }
+
+        lista.innerHTML = '';
+        btnFinalizar.disabled = false;
+
+        carrinho.forEach((item, index) => {
+            total += item.preco * item.quantidade;
+            lista.innerHTML += `
+                <div class="carrinho-item">
+                    <div class="carrinho-item-info">
+                        <div style="font-weight: bold; font-size: 0.95rem;">${item.nome}</div>
+                        <div style="font-size: 0.85rem; color: #64748b;">R$ ${item.preco.toFixed(2).replace('.', ',')}</div>
+                    </div>
+                    <div class="carrinho-item-controles">
+                        <button class="btn-qtd" onclick="mudarQtd(${index}, -1)">-</button>
+                        <span style="font-weight: bold; min-width: 15px; text-align: center;">${item.quantidade}</span>
+                        <button class="btn-qtd" onclick="mudarQtd(${index}, 1)">+</button>
+                        <button class="btn-qtd" style="background: #fee2e2; color: #ef4444;" onclick="removerItem(${index})"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>`;
+        });
+        document.getElementById('valorTotal').innerText = 'R$ ' + total.toFixed(2).replace('.', ',');
+    }
+
+    function adicionarAoCarrinho(id, nome, precoTxt, estoqueTxt) {
+        let idInt = parseInt(id);
+        let estoqueMax = parseInt(estoqueTxt);
+        let precoFloat = parseFloat(precoTxt.replace(',', '.'));
+        let itemExistente = carrinho.find(item => item.id === idInt);
+
+        if (itemExistente) {
+            if (itemExistente.quantidade < estoqueMax) itemExistente.quantidade++;
+            else alert('Estoque máximo atingido!');
+        } else {
+            carrinho.push({ id: idInt, nome: nome, preco: precoFloat, quantidade: 1, estoque_max: estoqueMax });
+        }
+        atualizarCarrinhoHTML();
+    }
+
+    function mudarQtd(index, delta) {
+        let item = carrinho[index];
+        let novaQtd = item.quantidade + delta;
+        if (novaQtd > 0 && novaQtd <= item.estoque_max) item.quantidade = novaQtd;
+        else if (novaQtd <= 0) removerItem(index);
+        atualizarCarrinhoHTML();
+    }
+
+    function removerItem(index) {
+        carrinho.splice(index, 1);
+        atualizarCarrinhoHTML();
+    }
+
+    function filtrarProdutos() {
+        let input = document.getElementById('buscaProduto').value.toLowerCase();
+        let cards = document.getElementsByClassName('produto-card');
+        for (let card of cards) {
+            let nome = card.querySelector('.produto-nome').innerText.toLowerCase();
+            card.style.display = nome.includes(input) ? "" : "none";
+        }
+    }
+
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('listaClientesDropdown');
+        if (e.target.id !== 'buscaClienteInput' && !dropdown.contains(e.target)) dropdown.style.display = 'none';
+    });
+
+    function mostrarListaClientes() {
+        document.getElementById('listaClientesDropdown').style.display = 'block';
+        filtrarClientes();
+    }
+
+    function filtrarClientes() {
+        let input = document.getElementById('buscaClienteInput').value.toLowerCase();
+        let items = document.getElementsByClassName('cliente-item');
+        for (let item of items) {
+            let match = item.dataset.nome.includes(input) || item.dataset.comanda.includes(input);
+            item.style.display = match ? "block" : "none";
+        }
+    }
+
+    function selecionarCliente(id, nome) {
+        document.getElementById('clienteSelect').value = id;
+        document.getElementById('buscaClienteInput').value = nome;
+        document.getElementById('limparClienteBtn').style.display = id ? 'block' : 'none';
+        document.getElementById('listaClientesDropdown').style.display = 'none';
+    }
+
+    function limparCliente() { selecionarCliente('', ''); }
+
+    function finalizarVenda() {
+        const btn = document.getElementById('btnFinalizar');
+        btn.disabled = true;
+        btn.innerText = 'Processando...';
+
+        const payload = {
+            itens: carrinho.map(i => ({ produto_id: i.id, quantidade: i.quantidade })),
+            cliente_id: document.getElementById('clienteSelect').value,
+            pago: document.getElementById('pagoCheckbox').checked,
+            total_venda: carrinho.reduce((s, i) => s + (i.preco * i.quantidade), 0)
+        };
+
+        fetch('/b75/pdv/salvar/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.status === 'sucesso') { 
+                abrirRecibo(d.pedido_id);
+                window.location.reload(); 
+            }
+            else { alert('Erro: ' + d.mensagem); btn.disabled = false; btn.innerText = 'Finalizar e Imprimir'; }
+        });
+    }
+
+    function abrirRecibo(pedidoId) {
+        const url = `/b75/pdv/imprimir/${pedidoId}/`;
+        window.open(url, '_blank', 'width=400,height=600');
+    }
+</script>
+{% endblock %}
