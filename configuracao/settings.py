@@ -14,6 +14,8 @@ ALLOWED_HOSTS = ['192.168.0.9', 'localhost', '45.163.40.74']
 
 # Adicionamos origens confiáveis para que o Django aceite requisições (como o login) de acessos externos
 CSRF_TRUSTED_ORIGINS = [
+    'http://45.163.40.74:9445',
+    'https://45.163.40.74:9445',
     'http://45.163.40.74',
     'https://45.163.40.74',
     'http://192.168.0.9',
