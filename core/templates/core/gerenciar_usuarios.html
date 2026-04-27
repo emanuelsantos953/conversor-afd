@@ -65,35 +65,10 @@
             
             <div class="form-group" style="background: #f1f3f4; padding: 15px; border-radius: 6px; margin-top: 20px;">
                 <p style="margin-top: 0; font-weight: bold; margin-bottom: 10px;">Permissões de Acesso:</p>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer;">
-                    <input type="checkbox" name="acesso_b75" style="transform: scale(1.2); margin-right: 8px;"> 
-                    Liberar acesso ao <b>Bingo (B75)</b>
-                </label>
                 <label style="display: block; cursor: pointer;">
                     <input type="checkbox" name="acesso_conversor" style="transform: scale(1.2); margin-right: 8px;"> 
                     Liberar acesso ao <b>Conversor AFD</b>
                 </label>
-
-                <hr style="border-top: 1px solid #ccc; margin: 15px 0;">
-                <div style="margin-bottom: 10px;">
-                    <strong>Validade da Licença (B75):</strong>
-                </div>
-                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                    <div>
-                        <label style="font-size: 0.9em; display: block; margin-bottom: 4px;">Data de Início:</label>
-                        <input type="date" name="inicio_licenca" class="form-control" style="width: 150px;">
-                    </div>
-                    <div>
-                        <label style="font-size: 0.9em; display: block; margin-bottom: 4px;">Data de Fim:</label>
-                        <input type="date" name="fim_licenca" class="form-control" style="width: 150px;">
-                    </div>
-                </div>
-                <div style="margin-top: 15px;">
-                    <label style="cursor: pointer; display: flex; align-items: center;">
-                        <input type="checkbox" name="licenca_ilimitada" style="transform: scale(1.2); margin-right: 8px;">
-                        Acesso Ilimitado / Vitalício
-                    </label>
-                </div>
             </div>
             
             <button type="submit" class="btn" style="margin-top: 10px;">Cadastrar Usuário</button>
@@ -107,7 +82,6 @@
                 <tr>
                     <th>Usuário</th>
                     <th>Acessos Liberados</th>
-                    <th>Status da Licença</th>
                 </tr>
             </thead>
             <tbody>
@@ -118,9 +92,6 @@
                               data-id="{{ u.id }}"
                               data-username="{{ u.username }}"
                               data-grupos="{{ u.groups.all|join:',' }}"
-                              data-inicio="{% if u.licenca_obj and u.licenca_obj.inicio %}{{ u.licenca_obj.inicio|date:'Y-m-d' }}{% endif %}"
-                              data-fim="{% if u.licenca_obj and u.licenca_obj.fim %}{{ u.licenca_obj.fim|date:'Y-m-d' }}{% endif %}"
-                              data-ilimitado="{% if u.licenca_obj and u.licenca_obj.ilimitado %}true{% else %}false{% endif %}"
                               onclick="abrirModal(this)">
                             {{ u.username }}
                         </span>
@@ -134,15 +105,6 @@
                             {% empty %}
                                 <span style="color: #999; font-style: italic;">Nenhum acesso</span>
                             {% endfor %}
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if u.is_superuser %}
-                            <span style="color: #1e8e3e; font-weight: bold;">Ativo (Admin)</span>
-                        {% elif u.licenca_obj and u.licenca_obj.is_ativa %}
-                            <span style="color: #1e8e3e; font-weight: bold;">✅ Ativa</span>
-                        {% else %}
-                            <span style="color: #d93025; font-weight: bold;">❌ Expirada</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -168,26 +130,9 @@
                 
                 <div class="form-group" style="background: #f1f3f4; padding: 15px; border-radius: 6px; margin-top: 15px;">
                     <p style="margin-top: 0; font-weight: bold; margin-bottom: 10px;">Permissões de Acesso:</p>
-                    <label style="display: block; margin-bottom: 8px; cursor: pointer;">
-                        <input type="checkbox" name="acesso_b75" id="editB75" style="transform: scale(1.2); margin-right: 8px;"> Bingo (B75)
-                    </label>
                     <label style="display: block; margin-bottom: 15px; cursor: pointer;">
                         <input type="checkbox" name="acesso_conversor" id="editConv" style="transform: scale(1.2); margin-right: 8px;"> Conversor AFD
                     </label>
-    
-                    <hr style="border-top: 1px solid #ccc; margin: 15px 0;">
-                    <div style="margin-bottom: 10px;">
-                        <strong>Validade da Licença (B75):</strong>
-                    </div>
-                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                        <div><label style="font-size: 0.9em; display: block; margin-bottom: 4px;">Início:</label><input type="date" name="inicio_licenca" id="editInicio" class="form-control" style="width: 140px;"></div>
-                        <div><label style="font-size: 0.9em; display: block; margin-bottom: 4px;">Fim:</label><input type="date" name="fim_licenca" id="editFim" class="form-control" style="width: 140px;"></div>
-                    </div>
-                    <div style="margin-top: 15px;">
-                        <label style="cursor: pointer; display: flex; align-items: center;">
-                            <input type="checkbox" name="licenca_ilimitada" id="editIlimitado" style="transform: scale(1.2); margin-right: 8px;"> Acesso Ilimitado
-                        </label>
-                    </div>
                 </div>
                 <button type="submit" class="btn" style="background: #1a73e8; margin-top: 10px;">Salvar Alterações</button>
             </form>
@@ -200,12 +145,7 @@
             document.getElementById('editNomeUsuario').innerText = elemento.getAttribute('data-username');
             
             var grupos = elemento.getAttribute('data-grupos') || "";
-            document.getElementById('editB75').checked = grupos.includes('B75');
             document.getElementById('editConv').checked = grupos.includes('Conversor');
-            
-            document.getElementById('editInicio').value = elemento.getAttribute('data-inicio');
-            document.getElementById('editFim').value = elemento.getAttribute('data-fim');
-            document.getElementById('editIlimitado').checked = (elemento.getAttribute('data-ilimitado') === 'true');
             
             document.getElementById('modalEdicao').style.display = 'flex';
         }

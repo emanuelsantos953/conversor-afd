@@ -43,17 +43,7 @@
             box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3);
         }
 
-        /* VERDE (Google Green) - Sistema Bingo B75 */
-        .btn-success {
-            background-color: #1e8e3e;
-            font-size: 18px; /* Um pouco maior para o número destacar */
-            font-weight: bold;
-        }
-        .btn-success:hover {
-            background-color: #137333;
-            box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3);
-        }
-
+        
         /* CINZA ESCURO - Admin (Gerenciar Usuários) */
         .btn-admin {
             background-color: #5f6368;
@@ -87,12 +77,7 @@
     </a>
     {% endif %}
 
-    {% if pode_acessar_b75 %}
-    <a href="{% url 'home_bingo' %}" class="btn btn-success" title="Acessar Sistema Bingo 75">
-        75
-    </a>
-    {% endif %}
-
+    
     {% if request.user.is_superuser %}
     <a href="{% url 'gerenciar_usuarios' %}" class="btn btn-admin">
         Gerenciar Usuários

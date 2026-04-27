@@ -15,10 +15,6 @@ from django.db.models import Q
 from datetime import datetime, date
 import calendar
 
-# NOVAS IMPORTAÇÕES PARA A LICENÇA
-from django.utils.timezone import make_aware
-from b75.models import LicencaUsuario
-
 # ==========================================
 # CONTROLE DE ACESSOS E MENU PRINCIPAL
 # ==========================================
@@ -33,12 +29,7 @@ def gerenciar_usuarios(request):
         acao = request.POST.get('acao', 'novo')
         username = request.POST.get('username')
         senha = request.POST.get('senha')
-        acesso_b75 = request.POST.get('acesso_b75') == 'on'
         acesso_conversor = request.POST.get('acesso_conversor') == 'on'
-        
-        inicio_licenca_str = request.POST.get('inicio_licenca')
-        fim_licenca_str = request.POST.get('fim_licenca')
-        ilimitado = request.POST.get('licenca_ilimitada') == 'on'
 
         # ==========================================
         # MODO EDIÇÃO DE USUÁRIO
@@ -47,35 +38,20 @@ def gerenciar_usuarios(request):
             user_id = request.POST.get('user_id')
             usuario_edit = get_object_or_404(User, id=user_id)
             
-            grupo_b75, _ = Group.objects.get_or_create(name='B75')
             grupo_conv, _ = Group.objects.get_or_create(name='Conversor')
             
-            # Atualiza os acessos
-            if acesso_b75: usuario_edit.groups.add(grupo_b75)
-            else: usuario_edit.groups.remove(grupo_b75)
-                
-            if acesso_conversor: usuario_edit.groups.add(grupo_conv)
-            else: usuario_edit.groups.remove(grupo_conv)
+            # Atualiza os acessos ao conversor
+            if acesso_conversor: 
+                usuario_edit.groups.add(grupo_conv)
+            else: 
+                usuario_edit.groups.remove(grupo_conv)
             
             # Atualiza a senha APENAS se o campo não estiver em branco
             if senha:
                 usuario_edit.set_password(senha)
-                usuario_edit.save()
+            
+            usuario_edit.save()
                 
-            # Atualiza a Licença
-            try:
-                licenca = LicencaUsuario.objects.get(usuario=usuario_edit)
-            except LicencaUsuario.DoesNotExist:
-                licenca = LicencaUsuario(usuario=usuario_edit)
-                
-            licenca.ilimitado = ilimitado
-            if inicio_licenca_str:
-                licenca.inicio = make_aware(datetime.strptime(inicio_licenca_str, '%Y-%m-%d'))
-            if fim_licenca_str:
-                dt_fim = datetime.strptime(fim_licenca_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
-                licenca.fim = make_aware(dt_fim)
-                
-            licenca.save()
             messages.success(request, f'Dados de {usuario_edit.username} atualizados!')
             return redirect('gerenciar_usuarios')
 
@@ -88,47 +64,22 @@ def gerenciar_usuarios(request):
             else:
                 user = User.objects.create_user(username=username, password=senha)
                 
-                if acesso_b75:
-                    grupo_b75, _ = Group.objects.get_or_create(name='B75')
-                    user.groups.add(grupo_b75)
                 if acesso_conversor:
                     grupo_conv, _ = Group.objects.get_or_create(name='Conversor')
                     user.groups.add(grupo_conv)
                     
-                try:
-                    licenca = LicencaUsuario.objects.get(usuario=user)
-                except LicencaUsuario.DoesNotExist:
-                    licenca = LicencaUsuario(usuario=user)
-
-                licenca.ilimitado = ilimitado
-                if inicio_licenca_str:
-                    licenca.inicio = make_aware(datetime.strptime(inicio_licenca_str, '%Y-%m-%d'))
-                if fim_licenca_str:
-                    dt_fim = datetime.strptime(fim_licenca_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
-                    licenca.fim = make_aware(dt_fim)
-                licenca.save()
-                
                 messages.success(request, f'Usuário {username} criado com sucesso!')
                 return redirect('gerenciar_usuarios')
 
-    # SOLUÇÃO PARA O ERRO 1146 (Bancos de dados diferentes)
-    # Busca os usuários e as licenças de forma isolada e junta no Python!
     usuarios = list(User.objects.all().prefetch_related('groups'))
-    licencas = LicencaUsuario.objects.all()
-    mapa_licencas = {lic.usuario_id: lic for lic in licencas}
-    
-    for u in usuarios:
-        u.licenca_obj = mapa_licencas.get(u.id)
 
     return render(request, 'core/gerenciar_usuarios.html', {'usuarios': usuarios})
 
 @login_required
 def home(request):
-    pode_acessar_b75 = request.user.is_superuser or request.user.groups.filter(name='B75').exists()
     pode_acessar_conversor = request.user.is_superuser or request.user.groups.filter(name='Conversor').exists()
 
     return render(request, 'core/home.html', {
-        'pode_acessar_b75': pode_acessar_b75,
         'pode_acessar_conversor': pode_acessar_conversor,
     })
 

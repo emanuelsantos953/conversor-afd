@@ -21,7 +21,4 @@ urlpatterns = [
     path('importar-planilha/', views.importar_planilha, name='importar_planilha'),
     path('importar-afd/', views.importar_afd, name='importar_afd'),
     path('exportar-afd/', views.exportar_afd, name='exportar_afd'),
-    
-    # Inclusão das rotas do Bingo
-    path('b75/', include('b75.urls')),
 ]
