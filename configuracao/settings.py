@@ -10,7 +10,7 @@ SECRET_KEY = 'django-insecure-)3-n%&ge+zyi=mnexw00g6e)i1)prwfx5oo3vtk$4%25y*a3*#
 DEBUG = False
 
 # Adicionamos seu IP público e o IP interno aqui
-ALLOWED_HOSTS = ['192.168.0.9', 'localhost', '45.163.40.74']
+ALLOWED_HOSTS = ['192.168.0.9', 'localhost', '45.163.40.74', 'sistemasweb.taquarituba.sp.gov.br']
 
 # Adicionamos origens confiáveis para que o Django aceite requisições (como o login) de acessos externos
 CSRF_TRUSTED_ORIGINS = [
@@ -20,6 +20,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://45.163.40.74',
     'http://192.168.0.9',
     'https://192.168.0.9',
+    'https://sistemasweb.taquarituba.sp.gov.br',
+    'https://sistemasweb.taquarituba.sp.gov.br:9445',
 ]
 
 
