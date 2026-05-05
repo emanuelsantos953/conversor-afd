@@ -27,13 +27,37 @@
 </head>
 <body>
     <div class="container">
-        <h2 style="color: #417690; margin-bottom: 5px;">Espelho de Ponto: {{ funcionario.nome_completo }}</h2>
-        <p style="color: #555; margin-bottom: 20px;">Matrícula: {{ funcionario.matricula }} | PIS: {{ funcionario.pis }}</p>
-        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px; background-color: #f9f9f9; padding: 10px; border-radius: 4px; border: 1px solid #ddd;">
-         <label for="grupo_ponto_input" style="font-weight: bold; color: #555; margin: 0;">Grupo de Ponto:</label>
-         <input type="text" id="grupo_ponto_input" value="{{ funcionario.grupo_ponto|default_if_none:'' }}" placeholder="Ex: Operacional, Noturno..." style="padding: 6px; border: 1px solid #ccc; border-radius: 4px; flex: 1; max-width: 300px;">
-         <button onclick="salvarGrupo()" id="btn_salvar_grupo" class="btn btn-primary" style="margin: 0; padding: 6px 12px; width: auto; background-color: #17a2b8; border-color: #17a2b8;">Atualizar Grupo</button>
-     </div>
+        <h2 style="color: #417690; margin-bottom: 15px;">Perfil do Funcionário</h2>
+        
+        <div style="margin-bottom: 25px; background-color: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <label for="nome_input" style="font-weight: bold; color: #555;">Nome Completo:</label>
+                    <input type="text" id="nome_input" value="{{ funcionario.nome_completo }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <label for="matricula_input" style="font-weight: bold; color: #555;">Matrícula:</label>
+                    <input type="text" id="matricula_input" value="{{ funcionario.matricula }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <label for="pis_input" style="font-weight: bold; color: #555;">PIS:</label>
+                    <input type="text" id="pis_input" value="{{ funcionario.pis }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <label for="cpf_input" style="font-weight: bold; color: #555;">CPF:</label>
+                    <input type="text" id="cpf_input" value="{{ funcionario.cpf }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <label for="grupo_ponto_input" style="font-weight: bold; color: #555;">Grupos (Separe por vírgula):</label>
+                    <input type="text" id="grupo_ponto_input" value="{% for g in funcionario.grupos.all %}{{ g.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}" placeholder="Ex: Operacional, Noite..." style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <button onclick="atualizarFuncionario()" id="btn_atualizar_funcionario" class="btn btn-primary" style="margin: 0; padding: 10px 20px; width: auto; background-color: #28a745; border-color: #28a745; font-weight: bold;">
+                    💾 Salvar Alterações Cadastrais
+                </button>
+            </div>
+        </div>
 
         <input type="hidden" id="funcionario_id" value="{{ funcionario.id }}">
         {% csrf_token %}
@@ -136,48 +160,48 @@
                 botao.innerHTML = '❌';
             });
         }
-            // NOVA FUNÇÃO: Salvar Grupo
-     function salvarGrupo() {
-         const btn = document.getElementById('btn_salvar_grupo');
-         const grupo = document.getElementById('grupo_ponto_input').value;
-         const funcionarioId = document.getElementById('funcionario_id').value;
-         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-         btn.innerHTML = '⏳'; // Feedback visual de carregando
+        function atualizarFuncionario() {
+            const btn = document.getElementById('btn_atualizar_funcionario');
+            const payload = {
+                funcionario_id: document.getElementById('funcionario_id').value,
+                nome: document.getElementById('nome_input').value,
+                matricula: document.getElementById('matricula_input').value,
+                pis: document.getElementById('pis_input').value,
+                cpf: document.getElementById('cpf_input').value,
+                grupo: document.getElementById('grupo_ponto_input').value
+            };
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-         fetch('/ponto/salvar-grupo/', {
-             method: 'POST',
-             headers: {
-                 'Content-Type': 'application/json',
-                 'X-CSRFToken': csrfToken
-             },
-             body: JSON.stringify({
-                 funcionario_id: funcionarioId,
-                 grupo: grupo
-             })
-         })
-         .then(response => response.json())
-         .then(data => {
-             if (data.status === 'sucesso') {
-                 btn.innerHTML = '✅ Salvo!';
-                 btn.style.backgroundColor = '#28a745';
-                 btn.style.borderColor = '#28a745';
-                 // Volta ao normal depois de 2 segundos
-                 setTimeout(() => {
-                     btn.innerHTML = 'Atualizar Grupo';
-                     btn.style.backgroundColor = '#17a2b8';
-                     btn.style.borderColor = '#17a2b8';
-                 }, 2000);
-             } else {
-                 alert("Erro ao salvar grupo: " + data.mensagem);
-                 btn.innerHTML = 'Atualizar Grupo';
-             }
-         })
-         .catch(error => {
-             alert("Erro de conexão.");
-             btn.innerHTML = 'Atualizar Grupo';
-         });
-     }
+            btn.innerHTML = '⏳ Processando...';
+
+            fetch('/ponto/atualizar-funcionario/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    btn.innerHTML = '✅ Dados Atualizados!';
+                    btn.style.backgroundColor = '#155724';
+                    setTimeout(() => {
+                        btn.innerHTML = '💾 Salvar Alterações Cadastrais';
+                        btn.style.backgroundColor = '#28a745';
+                    }, 2000);
+                } else {
+                    alert("Erro ao atualizar dados: " + data.mensagem);
+                    btn.innerHTML = '💾 Salvar Alterações Cadastrais';
+                }
+            })
+            .catch(error => {
+                alert("Erro de conexão.");
+                btn.innerHTML = '💾 Salvar Alterações Cadastrais';
+            });
+        }
     </script>
 </body>
 </html>

@@ -1,11 +1,17 @@
 from django.db import models
 
+class Grupo(models.Model):
+    nome = models.CharField(max_length=50, unique=True)
+
+    def __str__(self):
+        return self.nome
+
 class Funcionario(models.Model):
     matricula = models.CharField(max_length=20, unique=True)
     nome_completo = models.CharField(max_length=255)
     pis = models.CharField(max_length=11, unique=True)
     cpf = models.CharField(max_length=11, unique=True)
-    grupo_ponto = models.CharField(max_length=50, blank=True, null=True)
+    grupos = models.ManyToManyField(Grupo, blank=True)
     data_cadastro = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -48,3 +54,10 @@ class MatriculaIgnorada(models.Model):
 
     def __str__(self):
         return f"Matrícula Ignorada: {self.matricula}"
+
+class CpfIgnorado(models.Model):
+    cpf = models.CharField(max_length=11, unique=True)
+    data_adicionado = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"CPF Ignorado: {self.cpf}"

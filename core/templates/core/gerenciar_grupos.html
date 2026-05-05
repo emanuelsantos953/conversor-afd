@@ -1,0 +1,78 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Gerenciar Grupos</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        .msg { padding: 10px; margin-bottom: 20px; border-radius: 4px; border: 1px solid transparent; }
+        .msg-success { background-color: #d4edda; color: #155724; border-color: #c3e6cb; }
+        .msg-error { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+    </style>
+</head>
+<body>
+    <div class="card" style="max-width: 800px; margin: 40px auto;">
+        <div class="card-header" style="background-color: #6f42c1; color: white;">
+            Gerenciar Grupos de Ponto
+        </div>
+        <div class="card-body">
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="msg {% if message.tags == 'success' %}msg-success{% else %}msg-error{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <p>Abaixo estão todos os grupos cadastrados. Alterar o nome de um grupo refletirá em todos os funcionários vinculados.</p>
+
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                <thead>
+                    <tr style="background-color: #f8f9fa;">
+                        <th style="border: 1px solid #dee2e6; padding: 12px; text-align: left;">Nome do Grupo</th>
+                        <th style="border: 1px solid #dee2e6; padding: 12px; text-align: center; width: 250px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for grupo in grupos %}
+                    <tr>
+                        <td style="border: 1px solid #dee2e6; padding: 12px;">
+                            <form id="form_renomear_{{ grupo.id }}" method="POST" style="display: flex; gap: 5px;">
+                                {% csrf_token %}
+                                <input type="hidden" name="acao" value="renomear">
+                                <input type="hidden" name="grupo_id" value="{{ grupo.id }}">
+                                <input type="text" name="novo_nome" value="{{ grupo.nome }}" style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                            </form>
+                        </td>
+                        <td style="border: 1px solid #dee2e6; padding: 12px; text-align: center;">
+                            <div style="display: flex; gap: 5px; justify-content: center;">
+                                <button type="submit" form="form_renomear_{{ grupo.id }}" class="btn btn-primary" style="background-color: #007bff; margin: 0; padding: 6px 12px; font-size: 13px;">💾 Salvar</button>
+                                
+                                <form method="POST" onsubmit="return confirm('Tem certeza que deseja excluir o grupo \'{{ grupo.nome }}\'? Todos os funcionários serão desvinculados dele.');" style="margin: 0;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="acao" value="excluir">
+                                    <input type="hidden" name="grupo_id" value="{{ grupo.id }}">
+                                    <button type="submit" class="btn btn-primary" style="background-color: #dc3545; margin: 0; padding: 6px 12px; font-size: 13px;">🗑️ Excluir</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="2" style="border: 1px solid #dee2e6; padding: 20px; text-align: center; color: #6c757d;">Nenhum grupo cadastrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div style="margin-top: 30px;">
+                <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
+                    <button class="btn btn-secondary" style="width: 100%;">Voltar para Listagem</button>
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

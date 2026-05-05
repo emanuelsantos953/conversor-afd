@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from .forms import FuncionarioForm
-from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada
+from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada, CpfIgnorado, Grupo
 from django.db import IntegrityError
 from django.db.models import Q  
 from datetime import datetime, date
@@ -119,7 +119,7 @@ def listar_funcionarios(request):
             )
 
         if grupo:
-            resultados = resultados.filter(grupo_ponto=grupo)
+            resultados = resultados.filter(grupos__nome=grupo)
 
         if len(query) < 3 and not grupo:
             return JsonResponse({'funcionarios': []})
@@ -132,27 +132,40 @@ def listar_funcionarios(request):
                 'nome_completo': func.nome_completo,
                 'pis': func.pis,
                 'cpf': func.cpf,
-                'grupo': func.grupo_ponto if func.grupo_ponto else 'Sem Grupo'
+                'grupo': ", ".join([g.nome for g in func.grupos.all()]) if func.grupos.exists() else 'Sem Grupo'
             })
         return JsonResponse({'funcionarios': dados})
 
-    grupos_existentes = Funcionario.objects.exclude(grupo_ponto__isnull=True).exclude(grupo_ponto__exact='').values_list('grupo_ponto', flat=True).distinct()
+    grupos_existentes = Grupo.objects.all().values_list('nome', flat=True)
     
     return render(request, 'core/listar.html', {'grupos': grupos_existentes})
 
 @login_required
-def salvar_grupo(request):
+def atualizar_funcionario(request):
     if request.method == 'POST':
         try:
             dados = json.loads(request.body)
             funcionario_id = dados.get('funcionario_id')
-            novo_grupo = dados.get('grupo')
             
             funcionario = Funcionario.objects.get(id=funcionario_id)
-            funcionario.grupo_ponto = novo_grupo if novo_grupo.strip() else None
+            funcionario.matricula = dados.get('matricula')
+            funcionario.nome_completo = dados.get('nome')
+            funcionario.pis = dados.get('pis')
+            funcionario.cpf = dados.get('cpf')
+            
+            # Atualiza os grupos
+            nomes_grupos = [g.strip() for g in dados.get('grupo', '').split(',') if g.strip()]
+            grupos_objs = []
+            for nome in nomes_grupos:
+                g, _ = Grupo.objects.get_or_create(nome=nome)
+                grupos_objs.append(g)
+            
+            funcionario.grupos.set(grupos_objs)
             funcionario.save()
             
             return JsonResponse({'status': 'sucesso'})
+        except IntegrityError as e:
+            return JsonResponse({'status': 'erro', 'mensagem': 'Matrícula, PIS ou CPF já cadastrados para outro funcionário.'})
         except Exception as e:
             return JsonResponse({'status': 'erro', 'mensagem': str(e)})
             
@@ -247,7 +260,8 @@ def salvar_ponto(request):
 def importar_afd(request):
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
-        grupo_ponto = request.POST.get('grupo_ponto')
+        grupo_nome = request.POST.get('grupo_ponto')
+        conflito_grupo = request.POST.get('conflito_grupo', 'adicionar')
         
         if arquivo:
             conteudo = arquivo.read().decode('utf-8', errors='ignore')
@@ -258,14 +272,14 @@ def importar_afd(request):
                 <html>
                 <head>
                     <style>
-                        body { background-color: #1e1e1e; color: #00ff00; font-family: 'Courier New', monospace; padding: 20px; }
-                        .log-line { margin: 2px 0; border-bottom: 1px solid #333; }
-                        .success { color: #00ff00; }
-                        .warning { color: #ffeb3b; }
-                        .error { color: #ff5252; }
-                        .info { color: #00bcd4; }
-                        .summary { margin-top: 20px; font-size: 1.2em; border-top: 2px solid white; padding-top: 10px; }
-                        .btn { display: inline-block; padding: 10px 20px; background: white; color: black; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold;}
+                        body { background-color: #ffffff; color: #000000; font-family: 'Cascadia Mono', monospace; padding: 20px; margin: 0; }
+                        .log-line { margin: 2px 0; border-bottom: 1px solid #eee; }
+                        .success { color: #155724; }
+                        .warning { color: #856404; }
+                        .error { color: #721c24; }
+                        .info { color: #0c5460; }
+                        .summary { margin-top: 20px; font-size: 1.2em; border-top: 2px solid #000; padding-top: 10px; }
+                        .btn { display: inline-block; padding: 10px 20px; background: #e0e0e0; color: black; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold; border: 1px solid #ccc;}
                     </style>
                 </head>
                 <body>
@@ -303,7 +317,7 @@ def importar_afd(request):
                                 data_batida = datetime.strptime(data_txt, '%d%m%Y').date()
                                 hora_batida = datetime.strptime(hora_txt, '%H%M').time()
 
-                            if PisIgnorado.objects.filter(pis=identificador_txt).exists():
+                            if PisIgnorado.objects.filter(pis=identificador_txt).exists() or CpfIgnorado.objects.filter(cpf=identificador_txt).exists():
                                 yield f"<div class='log-line warning'>[IGNORADO] PIS/CPF {identificador_txt} está na lista negra.</div>"
                                 continue
 
@@ -315,11 +329,14 @@ def importar_afd(request):
                                 msg_log = f"[SUCESSO] {funcionario.nome_completo} - {data_batida} às {hora_batida}"
                                 status_css = "success"
 
-                                if grupo_ponto and funcionario.id not in funcionarios_atualizados:
-                                    funcionario.grupo_ponto = grupo_ponto
-                                    funcionario.save()
-                                    funcionarios_atualizados.append(funcionario.id)
-                                    msg_log += " (Grupo Atualizado)"
+                                if grupo_nome:
+                                    g_obj, _ = Grupo.objects.get_or_create(nome=grupo_nome)
+                                    if conflito_grupo == 'substituir':
+                                        funcionario.grupos.set([g_obj])
+                                    else:
+                                        funcionario.grupos.add(g_obj)
+                                    
+                                    msg_log += f" (Grupo {grupo_nome} atualizado)"
 
                                 registro, created = RegistroPonto.objects.get_or_create(
                                     funcionario=funcionario,
@@ -371,7 +388,6 @@ def importar_afd(request):
                 else:
                     yield "<div class='summary success'>✅ Importação concluída com sucesso total!</div>"
 
-                yield f"<br><a href='/gerenciar/' class='btn'>Voltar para Funcionários</a>"
                 yield "</body></html>"
 
             return StreamingHttpResponse(stream_processamento())
@@ -406,7 +422,7 @@ def exportar_afd(request):
         if tipo == 'grupo':
             grupo = request.POST.get('grupo')
             if grupo:
-                filtros['funcionario__grupo_ponto'] = grupo
+                filtros['funcionario__grupos__nome'] = grupo
         elif tipo == 'funcionario':
             func_id = request.POST.get('funcionario_id')
             if func_id:
@@ -448,7 +464,7 @@ def exportar_afd(request):
         
         return response
 
-    grupos = Funcionario.objects.exclude(grupo_ponto__isnull=True).exclude(grupo_ponto__exact='').values_list('grupo_ponto', flat=True).distinct()
+    grupos = Grupo.objects.all().values_list('nome', flat=True)
     funcionarios = Funcionario.objects.all().order_by('nome_completo')
     
     return render(request, 'core/exportar_afd.html', {'grupos': grupos, 'funcionarios': funcionarios})
@@ -493,7 +509,8 @@ def importar_funcionarios(request):
 def importar_planilha(request):
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
-        grupo_ponto = request.POST.get('grupo_ponto')
+        grupo_nome = request.POST.get('grupo_ponto')
+        conflito_grupo = request.POST.get('conflito_grupo', 'adicionar')
         
         if arquivo:
             try:
@@ -506,81 +523,127 @@ def importar_planilha(request):
             df.columns = df.columns.str.strip()
             linhas = df.to_dict('records')
 
-            dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
-            funcionarios_atualizados = []
-            matriculas_desconhecidas = set()
+            def stream_planilha():
+                yield """
+                <html>
+                <head>
+                    <style>
+                        body { background-color: #ffffff; color: #000000; font-family: 'Cascadia Mono', monospace; padding: 20px; margin: 0; }
+                        .log-line { margin: 2px 0; border-bottom: 1px solid #eee; }
+                        .success { color: #155724; }
+                        .warning { color: #856404; }
+                        .error { color: #721c24; }
+                        .info { color: #0c5460; }
+                        .summary { margin-top: 20px; font-size: 1.2em; border-top: 2px solid #000; padding-top: 10px; }
+                        .btn { display: inline-block; padding: 10px 20px; background: #e0e0e0; color: black; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold; border: 1px solid #ccc;}
+                    </style>
+                </head>
+                <body>
+                <h2>Iniciando Processamento da Planilha...</h2>
+                <div id="terminal">
+                """
 
-            for linha in linhas:
-                matricula_txt = str(linha.get('ID', '')).strip()
-                hora_completa_txt = str(linha.get('Hora', '')).strip()
+                dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+                funcionarios_atualizados = []
+                matriculas_desconhecidas = set()
 
-                if not matricula_txt or matricula_txt == 'nan' or not hora_completa_txt or hora_completa_txt == 'nan':
-                    continue
-                    
-                if MatriculaIgnorada.objects.filter(matricula=matricula_txt).exists():
-                    continue
-                    
-                try:
-                    dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M:%S')
-                except ValueError:
+                for linha in linhas:
+                    matricula_txt = str(linha.get('ID', '')).strip()
+                    hora_completa_txt = str(linha.get('Hora', '')).strip()
+
+                    msg_log = ""
+                    status_css = "info"
+
+                    if not matricula_txt or matricula_txt == 'nan' or not hora_completa_txt or hora_completa_txt == 'nan':
+                        continue
+                        
+                    if MatriculaIgnorada.objects.filter(matricula=matricula_txt).exists():
+                        yield f"<div class='log-line warning'>[IGNORADO] Matrícula {matricula_txt} está na lista negra.</div>"
+                        continue
+                        
                     try:
-                        dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M')
+                        dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M:%S')
                     except ValueError:
                         try:
-                            dt_obj = datetime.strptime(hora_completa_txt, '%Y/%m/%d %H:%M:%S')
+                            dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M')
                         except ValueError:
                             try:
-                                dt_obj = datetime.strptime(hora_completa_txt, '%Y/%m/%d %H:%M')
+                                dt_obj = datetime.strptime(hora_completa_txt, '%Y/%m/%d %H:%M:%S')
                             except ValueError:
-                                continue
-                        
-                data_batida = dt_obj.date()
-                hora_batida = dt_obj.time()
-                
-                funcionario = Funcionario.objects.filter(matricula=matricula_txt).first()
-                
-                if funcionario:
-                    if grupo_ponto and funcionario.id not in funcionarios_atualizados:
-                        funcionario.grupo_ponto = grupo_ponto
-                        funcionario.save()
-                        funcionarios_atualizados.append(funcionario.id)
-                        
-                    registro, created = RegistroPonto.objects.get_or_create(
-                        funcionario=funcionario,
-                        data=data_batida,
-                        defaults={'dia_semana': dias_semana_pt[data_batida.weekday()]}
-                    )
+                                try:
+                                    dt_obj = datetime.strptime(hora_completa_txt, '%Y/%m/%d %H:%M')
+                                except ValueError:
+                                    continue
+                            
+                    data_batida = dt_obj.date()
+                    hora_batida = dt_obj.time()
+                    
+                    funcionario = Funcionario.objects.filter(matricula=matricula_txt).first()
+                    
+                    if funcionario:
+                        msg_log = f"[SUCESSO] {funcionario.nome_completo} - {data_batida} às {hora_batida}"
+                        status_css = "success"
 
-                    if registro.editado_manualmente:
-                        continue
+                        if grupo_nome:
+                            g_obj, _ = Grupo.objects.get_or_create(nome=grupo_nome)
+                            if conflito_grupo == 'substituir':
+                                funcionario.grupos.set([g_obj])
+                            else:
+                                funcionario.grupos.add(g_obj)
+                            
+                            msg_log += f" (Grupo {grupo_nome} atualizado)"
+                            
+                        registro, created = RegistroPonto.objects.get_or_create(
+                            funcionario=funcionario,
+                            data=data_batida,
+                            defaults={'dia_semana': dias_semana_pt[data_batida.weekday()]}
+                        )
 
-                    batidas_existentes = []
-                    for campo in ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']:
-                        hora_salva = getattr(registro, campo)
-                        if hora_salva:
-                            batidas_existentes.append(hora_salva)
+                        if registro.editado_manualmente:
+                            msg_log += " (Ignorado - Edição Manual)"
+                        else:
+                            batidas_existentes = []
+                            for campo in ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']:
+                                hora_salva = getattr(registro, campo)
+                                if hora_salva:
+                                    batidas_existentes.append(hora_salva)
 
-                    if hora_batida not in batidas_existentes and len(batidas_existentes) < 6:
-                        batidas_existentes.append(hora_batida)
-                        batidas_existentes.sort()
+                            if hora_batida not in batidas_existentes and len(batidas_existentes) < 6:
+                                batidas_existentes.append(hora_batida)
+                                batidas_existentes.sort()
 
-                        registro.entrada_1 = batidas_existentes[0] if len(batidas_existentes) > 0 else None
-                        registro.saida_1 = batidas_existentes[1] if len(batidas_existentes) > 1 else None
-                        registro.entrada_2 = batidas_existentes[2] if len(batidas_existentes) > 2 else None
-                        registro.saida_2 = batidas_existentes[3] if len(batidas_existentes) > 3 else None
-                        registro.entrada_3 = batidas_existentes[4] if len(batidas_existentes) > 4 else None
-                        registro.saida_3 = batidas_existentes[5] if len(batidas_existentes) > 5 else None
-                        registro.save()
+                                registro.entrada_1 = batidas_existentes[0] if len(batidas_existentes) > 0 else None
+                                registro.saida_1 = batidas_existentes[1] if len(batidas_existentes) > 1 else None
+                                registro.entrada_2 = batidas_existentes[2] if len(batidas_existentes) > 2 else None
+                                registro.saida_2 = batidas_existentes[3] if len(batidas_existentes) > 3 else None
+                                registro.entrada_3 = batidas_existentes[4] if len(batidas_existentes) > 4 else None
+                                registro.saida_3 = batidas_existentes[5] if len(batidas_existentes) > 5 else None
+                                registro.save()
+                            else:
+                                msg_log += " (Dia Cheio ou Duplicada)"
+                    else:
+                        msg_log = f"[DESCONHECIDO] Matrícula {matricula_txt} não encontrada no banco."
+                        status_css = "error"
+                        matriculas_desconhecidas.add(matricula_txt)
+
+                    yield f"<div class='log-line {status_css}'>{msg_log}</div>"
+                    yield "<script>window.scrollTo(0, document.body.scrollHeight);</script>"
+
+                yield "</div>"
+
+                if matriculas_desconhecidas:
+                    yield "<div class='summary error'>⚠️ Foram encontradas Matrículas desconhecidas!</div>"
+                    yield "<ul>"
+                    for mat in matriculas_desconhecidas:
+                        yield f"<li>{mat}</li>"
+                    yield "</ul>"
+                    yield "<p>Copie os números acima e cadastre-os.</p>"
                 else:
-                    matriculas_desconhecidas.add(matricula_txt)
+                    yield "<div class='summary success'>✅ Importação concluída com sucesso total!</div>"
 
-            if matriculas_desconhecidas:
-                return render(request, 'core/importar_planilha.html', {
-                    'alerta_matricula': True,
-                    'matriculas_desconhecidas': list(matriculas_desconhecidas)
-                })
+                yield "</body></html>"
 
-            return redirect('listar_funcionarios')
+            return StreamingHttpResponse(stream_planilha())
 
     return render(request, 'core/importar_planilha.html')
 
@@ -595,3 +658,112 @@ def ignorar_matricula(request):
         except Exception as e:
             return JsonResponse({'status': 'erro'})
     return JsonResponse({'status': 'invalido'})
+
+@login_required
+def cadastro_ignorados(request):
+    if request.method == 'POST':
+        tipo = request.POST.get('tipo')
+        valor = request.POST.get('valor', '').strip()
+        
+        if valor:
+            if tipo == 'matricula':
+                MatriculaIgnorada.objects.get_or_create(matricula=valor)
+            elif tipo == 'pis':
+                PisIgnorado.objects.get_or_create(pis=valor)
+            elif tipo == 'cpf':
+                CpfIgnorado.objects.get_or_create(cpf=valor)
+                
+        return redirect('cadastro_ignorados')
+        
+    matriculas = MatriculaIgnorada.objects.all().order_by('-data_adicionado')
+    pis = PisIgnorado.objects.all().order_by('-data_adicionado')
+    cpfs = CpfIgnorado.objects.all().order_by('-data_adicionado')
+    
+    return render(request, 'core/cadastro_ignorados.html', {
+        'matriculas': matriculas,
+        'pis': pis,
+        'cpfs': cpfs
+    })
+
+@login_required
+def gerenciar_grupos(request):
+    if request.method == 'POST':
+        acao = request.POST.get('acao')
+        grupo_id = request.POST.get('grupo_id')
+        grupo = get_object_or_404(Grupo, id=grupo_id)
+        
+        if acao == 'renomear':
+            novo_nome = request.POST.get('novo_nome', '').strip()
+            if novo_nome:
+                grupo.nome = novo_nome
+                grupo.save()
+                messages.success(request, f"Grupo renomeado para '{novo_nome}' com sucesso.")
+        
+        elif acao == 'excluir':
+            nome_antigo = grupo.nome
+            grupo.delete()
+            messages.success(request, f"Grupo '{nome_antigo}' excluído. Todos os funcionários foram desvinculados dele.")
+            
+        return redirect('gerenciar_grupos')
+        
+    grupos = Grupo.objects.all().order_by('nome')
+    return render(request, 'core/gerenciar_grupos.html', {'grupos': grupos})
+
+@login_required
+def remover_ignorado(request, tipo, id):
+    if tipo == 'matricula':
+        MatriculaIgnorada.objects.filter(id=id).delete()
+    elif tipo == 'pis':
+        PisIgnorado.objects.filter(id=id).delete()
+    elif tipo == 'cpf':
+        CpfIgnorado.objects.filter(id=id).delete()
+    return redirect('cadastro_ignorados')
+
+@login_required
+def verificar_conflitos_grupo(request):
+    if request.method == 'POST':
+        arquivo = request.FILES.get('arquivo')
+        if not arquivo:
+            return JsonResponse({'conflitos': []})
+
+        ids_identificados = set()
+        
+        # Se for AFD
+        if arquivo.name.endswith('.txt'):
+            conteudo = arquivo.read().decode('utf-8', errors='ignore')
+            linhas = conteudo.splitlines()
+            for linha in linhas:
+                linha = linha.strip()
+                if linha.startswith('000000000') or len(linha) < 34: continue
+                if linha[9] == '3':
+                    if linha[14] == '-': identificador = linha[34:45]
+                    else: identificador = linha[23:34]
+                    ids_identificados.add(identificador)
+        # Se for Excel/CSV
+        else:
+            try:
+                df = pd.read_excel(arquivo, dtype=str)
+            except:
+                arquivo.seek(0)
+                df = pd.read_csv(arquivo, sep=None, engine='python', dtype=str)
+            
+            if 'ID' in df.columns:
+                ids_identificados.update(df['ID'].dropna().unique())
+
+        # Verifica quais desses funcionários já têm grupos
+        conflitos = []
+        funcionarios = Funcionario.objects.filter(
+            Q(pis__in=ids_identificados) | Q(cpf__in=ids_identificados) | Q(matricula__in=ids_identificados)
+        ).prefetch_related('grupos')
+
+        for f in funcionarios:
+            if f.grupos.exists():
+                conflitos.append({
+                    'id': f.id,
+                    'nome': f.nome_completo,
+                    'grupos': [g.nome for g in f.grupos.all()]
+                })
+
+        return JsonResponse({'conflitos': conflitos})
+
+    return JsonResponse({'status': 'erro'})

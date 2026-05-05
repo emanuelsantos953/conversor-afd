@@ -41,8 +41,9 @@
         </div>
         <div class="card-body">
             <p style="text-align: center;">Envie o arquivo texto extraído do relógio de ponto.</p>
-            <form method="POST" enctype="multipart/form-data">
+            <form id="importForm" method="POST" enctype="multipart/form-data" target="importFrame">
                 {% csrf_token %}
+                <input type="hidden" name="conflito_grupo" id="conflito_grupo" value="adicionar">
                 
                 <label for="grupo_ponto" style="font-weight: bold;">Nome do Grupo de Ponto (Opcional)</label>
                 <input type="text" name="grupo_ponto" id="grupo_ponto" placeholder="Ex: Operacional..." style="margin-bottom: 20px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
@@ -50,7 +51,7 @@
                 <label for="arquivo" style="font-weight: bold;">Arquivo AFD (.txt)</label>
                 <input type="file" name="arquivo" id="arquivo" accept=".txt" required style="margin-bottom: 20px; width: 100%; padding: 10px; border: 2px dashed #f5dd5d; border-radius: 4px;">
                 
-                <button type="submit" class="btn btn-primary" style="background-color: #ffb74d; color: #333; font-weight: bold; width: 100%; font-size: 16px;">Processar Batidas</button>
+                <button type="submit" id="btn_processar" class="btn btn-primary" style="background-color: #ffb74d; color: #333; font-weight: bold; width: 100%; font-size: 16px;">Processar Batidas</button>
             </form>
             <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
                 <button class="btn btn-secondary" style="width: 100%; margin-top: 10px;">Cancelar</button>
@@ -60,7 +61,68 @@
 
     </div>
 
+    <!-- Modal de Conflito de Grupo -->
+    <div id="conflitoModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 2000;">
+        <div style="background: white; padding: 30px; border-radius: 8px; max-width: 500px; width: 90%; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <h3 style="color: #dc3545; margin-top: 0;">⚠️ Conflito de Grupos</h3>
+            <p id="conflitoTexto" style="margin-bottom: 25px; line-height: 1.5; color: #333;"></p>
+            <div style="display: grid; gap: 10px;">
+                <button onclick="resolverConflito('adicionar')" class="btn btn-primary" style="background-color: #28a745; border: none; margin: 0; padding: 12px;">✅ Adicionar ao novo grupo (Manter atuais)</button>
+                <button onclick="resolverConflito('substituir')" class="btn btn-primary" style="background-color: #ffc107; color: black; border: none; margin: 0; padding: 12px;">🔄 Trocar grupo (Remover atuais)</button>
+                <button onclick="document.getElementById('conflitoModal').style.display='none';" class="btn btn-secondary" style="margin: 0;">❌ Cancelar Tudo</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        document.getElementById('importForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn_processar');
+            const grupo = document.getElementById('grupo_ponto').value;
+            
+            if (!grupo.trim()) { // Se não tiver grupo selecionado, vai direto
+                finalizarSubmissao();
+                return;
+            }
+
+            btn.innerHTML = '🔍 Verificando conflitos...';
+            btn.disabled = true;
+
+            const formData = new FormData(this);
+            try {
+                const response = await fetch('{% url "verificar_conflitos_grupo" %}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+                });
+                const data = await response.json();
+
+                if (data.conflitos && data.conflitos.length > 0) {
+                    const nomes = data.conflitos.map(c => c.nome).slice(0, 5).join(', ') + (data.conflitos.length > 5 ? '...' : '');
+                    document.getElementById('conflitoTexto').innerHTML = `Encontramos <strong>${data.conflitos.length}</strong> funcionários que já pertencem a outros grupos (ex: ${nomes}).<br><br>O que deseja fazer?`;
+                    document.getElementById('conflitoModal').style.display = 'flex';
+                    btn.innerHTML = 'Processar Batidas';
+                    btn.disabled = false;
+                } else {
+                    finalizarSubmissao();
+                }
+            } catch (err) {
+                console.error(err);
+                finalizarSubmissao();
+            }
+        });
+
+        function resolverConflito(acao) {
+            document.getElementById('conflito_grupo').value = acao;
+            document.getElementById('conflitoModal').style.display = 'none';
+            finalizarSubmissao();
+        }
+
+        function finalizarSubmissao() {
+            document.getElementById('importModal').style.display = 'flex';
+            document.getElementById('importForm').submit();
+        }
+
         function ignorarPis(pis) {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             const itemLista = document.getElementById('li_' + pis);
@@ -89,5 +151,14 @@
             });
         }
     </script>
+    <div id="importModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000;">
+        <div style="background: white; width: 80%; max-width: 900px; height: 80%; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+            <div style="padding: 15px; background: #f5f5f5; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-family: 'Cascadia Mono', monospace;">Console de Importação</h3>
+                <button type="button" onclick="window.location.reload();" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Fechar / Concluir</button>
+            </div>
+            <iframe name="importFrame" style="flex: 1; border: none; width: 100%;"></iframe>
+        </div>
+    </div>
 </body>
 </html>

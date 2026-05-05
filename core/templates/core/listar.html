@@ -30,27 +30,33 @@
     </style>
 </head>
 <body>
-    <div class="card" style="max-width: 800px; margin: 20px auto;">
+    <div class="card" style="max-width: 1200px; margin: 20px auto;">
         <div class="card-header">
             Gerenciar Funcionários
         </div>
         <div class="card-body">
             
-            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-             <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none; flex: 1;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; width: 100%;">+ Cadastrar Novo</button>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center;">
+             <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
+                 <button class="btn btn-primary" style="margin-bottom: 0; width: 100%; height: 100%;">+ Cadastrar Novo</button>
              </a>
-             <a href="{% url 'importar_funcionarios' %}" style="text-decoration: none; flex: 1;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c; width: 100%;">↑ Importar Funcionários</button>
+             <a href="{% url 'importar_funcionarios' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c; width: 100%; height: 100%;">↑ Importar Funcionários</button>
              </a>
-             <a href="{% url 'importar_afd' %}" style="text-decoration: none; flex: 1;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #ffb74d; color: #333; width: 100%;">⏰ Importar AFD</button>
+             <a href="{% url 'importar_afd' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #ffb74d; color: #333; width: 100%; height: 100%;">⏰ Importar AFD</button>
              </a>
-             <a href="{% url 'importar_planilha' %}" style="text-decoration: none; flex: 1;">
-             <button class="btn btn-primary" style="margin-bottom: 0; background-color: #17a2b8; color: white; width: 100%;">📊 Importar XLS</button>
+             <a href="{% url 'importar_planilha' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
+             <button class="btn btn-primary" style="margin-bottom: 0; background-color: #17a2b8; color: white; width: 100%; height: 100%;">📊 Importar XLS</button>
              </a>
-             <a href="{% url 'exportar_afd' %}" style="text-decoration: none; flex: 1;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #28a745; color: white; width: 100%;">💾 Exportar AFD</button>
+             <a href="{% url 'exportar_afd' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #28a745; color: white; width: 100%; height: 100%;">💾 Exportar AFD</button>
+             </a>
+             <a href="{% url 'gerenciar_grupos' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #6f42c1; color: white; width: 100%; height: 100%;">📁 Gerenciar Grupos</button>
+             </a>
+             <a href="{% url 'cadastro_ignorados' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
+                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #dc3545; color: white; width: 100%; height: 100%;">🚫 Cadastro de Ignorados</button>
              </a>
          </div>
 
