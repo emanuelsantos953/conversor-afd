@@ -28,6 +28,16 @@
 
             <p>Abaixo estão todos os grupos cadastrados. Alterar o nome de um grupo refletirá em todos os funcionários vinculados.</p>
 
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 25px;">
+                <h4 style="margin-top: 0; color: #6f42c1; margin-bottom: 15px;">➕ Cadastrar Novo Grupo</h4>
+                <form method="POST" style="display: flex; gap: 10px; align-items: center;">
+                    {% csrf_token %}
+                    <input type="hidden" name="acao" value="novo">
+                    <input type="text" name="nome" placeholder="Nome do novo grupo (ex: Noturno, Equipe B)" required style="flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; margin-bottom: 0;">
+                    <button type="submit" class="btn btn-primary" style="background-color: #6f42c1; margin: 0; padding: 12px 25px; width: auto; min-width: 150px;">Cadastrar</button>
+                </form>
+            </div>
+
             <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
                 <thead>
                     <tr style="background-color: #f8f9fa;">

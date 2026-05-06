@@ -690,6 +690,17 @@ def gerenciar_grupos(request):
     if request.method == 'POST':
         acao = request.POST.get('acao')
         grupo_id = request.POST.get('grupo_id')
+        
+        if acao == 'novo':
+            nome = request.POST.get('nome', '').strip()
+            if nome:
+                if Grupo.objects.filter(nome=nome).exists():
+                    messages.error(request, f"O grupo '{nome}' já existe.")
+                else:
+                    Grupo.objects.create(nome=nome)
+                    messages.success(request, f"Grupo '{nome}' criado com sucesso.")
+            return redirect('gerenciar_grupos')
+
         grupo = get_object_or_404(Grupo, id=grupo_id)
         
         if acao == 'renomear':
