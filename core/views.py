@@ -83,6 +83,9 @@ def home(request):
         'pode_acessar_conversor': pode_acessar_conversor,
     })
 
+@login_required
+def ajuda(request):
+    return render(request, 'core/ajuda.html')
 
 # ==========================================
 # FUNCIONÁRIOS E CADASTROS
@@ -557,8 +560,8 @@ def importar_planilha(request):
                     if not matricula_txt or matricula_txt == 'nan' or not hora_completa_txt or hora_completa_txt == 'nan':
                         continue
                         
-                    if MatriculaIgnorada.objects.filter(matricula=matricula_txt).exists():
-                        yield f"<div class='log-line warning'>[IGNORADO] Matrícula {matricula_txt} está na lista negra.</div>"
+                    if MatriculaIgnorada.objects.filter(matricula=matricula_txt).exists() or CpfIgnorado.objects.filter(cpf=matricula_txt).exists() or PisIgnorado.objects.filter(pis=matricula_txt).exists():
+                        yield f"<div class='log-line warning'>[IGNORADO] ID {matricula_txt} está na lista negra.</div>"
                         continue
                         
                     try:
@@ -579,6 +582,10 @@ def importar_planilha(request):
                     hora_batida = dt_obj.time()
                     
                     funcionario = Funcionario.objects.filter(matricula=matricula_txt).first()
+                    if not funcionario:
+                        funcionario = Funcionario.objects.filter(cpf=matricula_txt).first()
+                    if not funcionario:
+                        funcionario = Funcionario.objects.filter(pis=matricula_txt).first()
                     
                     if funcionario:
                         msg_log = f"[SUCESSO] {funcionario.nome_completo} - {data_batida} às {hora_batida}"
@@ -622,7 +629,7 @@ def importar_planilha(request):
                             else:
                                 msg_log += " (Dia Cheio ou Duplicada)"
                     else:
-                        msg_log = f"[DESCONHECIDO] Matrícula {matricula_txt} não encontrada no banco."
+                        msg_log = f"[DESCONHECIDO] ID/CPF {matricula_txt} não encontrado no banco."
                         status_css = "error"
                         matriculas_desconhecidas.add(matricula_txt)
 
@@ -632,7 +639,7 @@ def importar_planilha(request):
                 yield "</div>"
 
                 if matriculas_desconhecidas:
-                    yield "<div class='summary error'>⚠️ Foram encontradas Matrículas desconhecidas!</div>"
+                    yield "<div class='summary error'>⚠️ Foram encontrados IDs/CPFs desconhecidos!</div>"
                     yield "<ul>"
                     for mat in matriculas_desconhecidas:
                         yield f"<li>{mat}</li>"
