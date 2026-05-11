@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual do Sistema - Conversor AFD</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+            color: #202124;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .header {
+            background-color: #ffffff;
+            border-bottom: 1px solid #dadce0;
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        }
+
+        .header a {
+            color: #5f6368;
+            text-decoration: none;
+            font-size: 20px;
+            margin-right: 20px;
+            transition: color 0.2s;
+        }
+
+        .header a:hover {
+            color: #1a73e8;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 500;
+            color: #3c4043;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(60, 64, 67, 0.1), 0 1px 2px rgba(60, 64, 67, 0.06);
+            padding: 40px;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .hero h2 {
+            font-size: 28px;
+            color: #1a73e8;
+            margin-bottom: 10px;
+        }
+
+        .hero p {
+            color: #5f6368;
+            font-size: 16px;
+        }
+
+        h3 {
+            color: #1a73e8;
+            font-size: 20px;
+            margin-top: 40px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e8f0fe;
+        }
+
+        h4 {
+            color: #3c4043;
+            font-size: 16px;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h4 i {
+            color: #1a73e8;
+        }
+
+        p {
+            margin-bottom: 15px;
+            color: #4a4a4a;
+        }
+
+        ul {
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }
+
+        li {
+            margin-bottom: 8px;
+            color: #4a4a4a;
+        }
+
+        .card {
+            background-color: #f8f9fa;
+            border: 1px solid #e8eaed;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .highlight {
+            background-color: #e8f0fe;
+            color: #1967d2;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .btn-ref {
+            display: inline-block;
+            background-color: #1a73e8;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            margin: 0 4px;
+        }
+
+        .btn-ref.admin {
+            background-color: #5f6368;
+        }
+
+        .btn-ref.success {
+            background-color: #188038;
+        }
+
+        .btn-ref.warning {
+            background-color: #f29900;
+            color: #fff;
+        }
+
+        .btn-ref.danger {
+            background-color: #d93025;
+        }
+
+        .toc {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+            border: 1px solid #e8eaed;
+        }
+
+        .toc h3 {
+            margin-top: 0;
+            border: none;
+            color: #3c4043;
+        }
+
+        .toc ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .toc li {
+            margin-bottom: 10px;
+        }
+
+        .toc a {
+            color: #1a73e8;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        .footer-note {
+            text-align: center;
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #80868b;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <a href="{% url 'home' %}"><i class="fas fa-arrow-left"></i></a>
+        <h1>Ajuda & Manual do Usuário</h1>
+    </div>
+
+    <div class="container">
+        <div class="hero">
+            <h2>Bem-vindo ao Conversor AFD</h2>
+            <p>O seu sistema definitivo para gestão, conversão e consolidação de pontos de funcionários.</p>
+        </div>
+
+        <div class="toc">
+            <h3>Índice</h3>
+            <ul>
+                <li><a href="#sobre"><i class="fas fa-info-circle"></i> 1. Sobre o Sistema</a></li>
+                <li><a href="#inicio"><i class="fas fa-home"></i> 2. Tela Inicial e Acessos</a></li>
+                <li><a href="#gerenciar"><i class="fas fa-users"></i> 3. Gestão de Funcionários</a></li>
+                <li><a href="#ponto"><i class="fas fa-clock"></i> 4. Gestão de Ponto</a></li>
+                <li><a href="#importacoes"><i class="fas fa-file-import"></i> 5. Importações de Dados</a></li>
+                <li><a href="#exportacao"><i class="fas fa-file-export"></i> 6. Exportação de AFD</a></li>
+                <li><a href="#configuracoes"><i class="fas fa-cogs"></i> 7. Configurações Avançadas</a></li>
+            </ul>
+        </div>
+
+        <h3 id="sobre">1. Sobre o Sistema</h3>
+        <p>O <strong>Conversor AFD</strong> foi criado para unificar batidas de ponto provenientes de diferentes fontes
+            (relógios físicos que geram arquivo AFD, planilhas Excel/CSV) e permitir a correção e exportação destes
+            dados em um formato padronizado.</p>
+
+        <h3 id="inicio">2. Tela Inicial e Acessos</h3>
+        <p>Na tela inicial você encontrará os botões de acesso aos módulos principais, dependendo do seu nível de
+            permissão.</p>
+        <ul>
+            <li><span class="btn-ref">Gerenciar AFD</span>: Acessa o painel principal de funcionários e batidas de
+                ponto.</li>
+            <li><span class="btn-ref admin">Gerenciar Usuários</span>: Visível apenas para super administradores.
+                Permite criar novos usuários ou redefinir senhas, além de conceder ou remover acesso ao sistema
+                Conversor.</li>
+            <li><span class="btn-ref admin" style="background: #e0e0e0; color: #333;">Logout</span>: Encerra sua sessão
+                com segurança.</li>
+        </ul>
+
+        <h3 id="gerenciar">3. Gestão de Funcionários</h3>
+        <p>Ao clicar em "Gerenciar AFD", você é direcionado para a listagem de funcionários. O sistema oferece uma busca
+            dinâmica (mínimo de 3 letras) por Nome, PIS, CPF ou Matrícula.</p>
+
+        <h4><i class="fas fa-filter"></i> Filtros e Busca</h4>
+        <p>Utilize a barra superior para pesquisar rapidamente. Você também pode filtrar funcionários por <span
+                class="highlight">Grupo</span> (ex: professores, administrativos).</p>
+
+        <h4><i class="fas fa-user-edit"></i> Ações da Tabela</h4>
+        <p>Na coluna "Ações", você encontra dois botões para cada funcionário:</p>
+        <ul>
+            <li><span class="btn-ref admin"><i class="fas fa-edit"></i> Editar</span>: Permite alterar os dados
+                cadastrais e modificar a quais grupos o funcionário pertence.</li>
+            <li><span class="btn-ref"><i class="fas fa-calendar-alt"></i> Ver Ponto</span>: Abre o calendário completo
+                do mês selecionado com as batidas de ponto.</li>
+        </ul>
+
+        <h3 id="ponto">4. Gestão de Ponto</h3>
+        <p>Na tela de <strong>Ver Ponto</strong>, você visualiza o calendário do mês inteiro para um funcionário
+            específico.</p>
+        <div class="card">
+            <h4>Edição Manual</h4>
+            <p>Se o funcionário esqueceu de bater o ponto ou o relógio falhou, você pode clicar em qualquer dia no
+                calendário para editar as batidas. Os registros modificados manualmente receberão uma flag e não serão
+                sobrescritos em importações futuras.</p>
+        </div>
+
+        <h3 id="importacoes">5. Importações de Dados</h3>
+        <p>O sistema possui métodos robustos para importar dados em massa, economizando tempo. Todos esses recursos são
+            acessíveis via botões na tela de listagem de funcionários.</p>
+
+        <h4><i class="fas fa-user-plus"></i> Importar Funcionários</h4>
+        <p>Importa um lote de funcionários através de um arquivo de texto. O arquivo deve seguir a estrutura sequencial
+            (Matrícula, Nome, PIS, CPF - um por linha).</p>
+
+        <h4><i class="fas fa-file-excel"></i> Importar Planilha (Ponto)</h4>
+        <p>Importa batidas de ponto a partir de arquivos <code>.xlsx</code> ou <code>.csv</code>. O sistema cruza os
+            dados baseado na coluna <strong>ID</strong> (que corresponde à Matrícula do funcionário) e a coluna
+            <strong>Hora</strong>.</p>
+        <ul>
+            <li><strong>Dica:</strong> Você pode associar automaticamente todos os pontos importados a um <span
+                    class="highlight">Grupo</span> específico, escolhendo se deseja adicionar o funcionário a este grupo
+                ou substituir os grupos antigos dele.</li>
+        </ul>
+
+        <h4><i class="fas fa-file-alt"></i> Importar AFD (Ponto)</h4>
+        <p>Lê o arquivo texto gerado diretamente pelos relógios de ponto físicos (formato AFD). Ele processa as linhas
+            tipo <code>3</code> e vincula as batidas ao funcionário pelo PIS ou CPF.</p>
+
+        <h3 id="exportacao">6. Exportação de AFD</h3>
+        <p>Após consolidar e corrigir os pontos, você precisa gerar o arquivo final.</p>
+        <div class="card">
+            <h4><i class="fas fa-download"></i> Gerar AFD</h4>
+            <p>Este botão permite exportar as batidas de ponto em formato AFD oficial (Arquivo Fonte de Dados). Você
+                pode exportar:</p>
+            <ul>
+                <li><strong>Todos os registros</strong> dentro de um período.</li>
+                <li>Por <strong>Grupo Específico</strong> (ideal para separar arquivos por secretarias ou setores).</li>
+                <li>Por <strong>Funcionário Único</strong>.</li>
+            </ul>
+        </div>
+
+        <h3 id="configuracoes">7. Configurações Avançadas</h3>
+
+        <h4><i class="fas fa-layer-group"></i> Gerenciar Grupos</h4>
+        <p>Permite criar, renomear e excluir grupos de funcionários. Quando um grupo é excluído, ele é automaticamente
+            desvinculado de todos os funcionários que pertenciam a ele, mas os funcionários e seus pontos
+            <strong>não</strong> são apagados.</p>
+
+        <h4><i class="fas fa-user-slash"></i> Cadastros Ignorados</h4>
+        <p>Conhecido como "Lista Negra". Se o relógio físico possui registros antigos de pessoas que não fazem mais
+            parte do quadro, ou marcações de teste, você pode cadastrar o PIS, CPF ou Matrícula nesta tela.</p>
+        <p><strong>Efeito:</strong> Qualquer importação futura (via AFD ou Planilha) vai simplesmente ignorar as batidas
+            desses cadastros e pular para o próximo, sem exibir erros no terminal de importação.</p>
+
+        <div class="footer-note">
+            Conversor AFD &copy; 2026 - Sistema de Gestão de Ponto Eletrônico
+        </div>
+    </div>
+
+</body>
+
+</html>

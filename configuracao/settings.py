@@ -28,6 +28,7 @@ CSRF_TRUSTED_ORIGINS = [
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'core',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -68,7 +69,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'configuracao.wsgi.application'
-
+ASGI_APPLICATION = 'configuracao.asgi.application'
 
 # Database
 DATABASES = {

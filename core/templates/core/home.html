@@ -67,6 +67,24 @@
         }
 
         form { margin: 0; padding: 0; }
+
+        .footer {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 13px;
+        }
+        
+        .footer a {
+            color: #1a73e8;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -90,6 +108,10 @@
             Logout
         </button>
     </form>
+
+    <div class="footer">
+        Precisa de ajuda? <a href="{% url 'ajuda' %}">Consulte o Manual do Sistema</a>
+    </div>
 
 </body>
 </html>

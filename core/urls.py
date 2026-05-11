@@ -6,6 +6,7 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(template_name='core/login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
     path('', views.home, name='home'),
+    path('ajuda/', views.ajuda, name='ajuda'),
     
     # Rota do Gerenciador de Usuários (Acesso exclusivo do Admin)
     path('usuarios/', views.gerenciar_usuarios, name='gerenciar_usuarios'),
