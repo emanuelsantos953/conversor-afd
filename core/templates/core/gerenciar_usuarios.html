@@ -82,6 +82,7 @@
                 <tr>
                     <th>Usuário</th>
                     <th>Acessos Liberados</th>
+                    <th style="width: 100px; text-align: center;">Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -106,6 +107,15 @@
                                 <span style="color: #999; font-style: italic;">Nenhum acesso</span>
                             {% endfor %}
                         {% endif %}
+                    </td>
+                    <td style="text-align: center;">
+                        <button class="btn" style="padding: 5px 10px; font-size: 0.85rem; width: auto; background: #1a73e8;"
+                                data-id="{{ u.id }}"
+                                data-username="{{ u.username }}"
+                                data-grupos="{{ u.groups.all|join:',' }}"
+                                onclick="abrirModal(this)">
+                            Editar
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}

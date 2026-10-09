@@ -2,16 +2,17 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from datetime import datetime
 from asgiref.sync import sync_to_async
-from .models import Funcionario, RegistroPonto, Grupo
+from .models import Funcionario, RegistroPonto, Grupo, LogRelogio
+from .views import eh_batida_duplicada
 
 class RelogioEvoConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.device_sn = None
         await self.accept()
-        print("Nova conexão do Relógio Ponto WebSocket")
+        await self.log('conexao', '', 'Nova conexão WebSocket estabelecida.')
 
     async def disconnect(self, close_code):
-        print(f"Conexão do relógio encerrada (Código: {close_code})")
+        await self.log('desconexao', self.device_sn or '', f'Conexão encerrada (Código: {close_code})')
 
     async def receive(self, text_data):
         try:
@@ -22,7 +23,7 @@ class RelogioEvoConsumer(AsyncWebsocketConsumer):
             if "cmd" in message and message["cmd"] == "reg":
                 if "sn" in message:
                     self.device_sn = message["sn"]
-                    print(f"Dispositivo registrado: {self.device_sn}")
+                    await self.log('conexao', self.device_sn, f'Relógio registrado com S/N: {self.device_sn}')
 
                     response = {
                         "ret": "reg",
@@ -39,15 +40,10 @@ class RelogioEvoConsumer(AsyncWebsocketConsumer):
             # Respostas (ret) para quando nós solicitamos algo ao relógio
             elif "ret" in message:
                 ret = message["ret"].lower()
-                if ret == "getuserlist":
-                    print("Lista de usuários recebida:", message)
-                elif ret == "getnewlog":
-                    print("Novos logs recebidos via getnewlog:", message)
-                elif ret == "getuserinfo":
-                    print("Info de usuário recebida:", message)
+                await self.log('mensagem', self.device_sn or '', f'Resposta recebida ({ret}): {json.dumps(message)[:300]}')
 
         except json.JSONDecodeError as e:
-            print(f"Erro ao processar mensagem JSON: {e}")
+            await self.log('erro', self.device_sn or '', f'JSON inválido: {str(e)}')
             error_response = {
                 "error": "Formato JSON inválido",
                 "message": str(e)
@@ -106,6 +102,13 @@ class RelogioEvoConsumer(AsyncWebsocketConsumer):
                             if not funcionario:
                                 funcionario = Funcionario.objects.filter(cpf=matricula).first()
                             
+                            if not funcionario:
+                                LogRelogio.objects.create(
+                                    tipo='desconhecido',
+                                    numero_serie='',
+                                    mensagem=f'Matrícula/CPF não encontrado no banco: {matricula}'
+                                )
+
                             if funcionario:
                                 registro, created = RegistroPonto.objects.get_or_create(
                                     funcionario=funcionario,
@@ -120,7 +123,7 @@ class RelogioEvoConsumer(AsyncWebsocketConsumer):
                                         if hora_salva:
                                             batidas_existentes.append(hora_salva)
                                             
-                                    if hora_batida not in batidas_existentes and len(batidas_existentes) < 6:
+                                    if not eh_batida_duplicada(hora_batida, batidas_existentes) and len(batidas_existentes) < 6:
                                         batidas_existentes.append(hora_batida)
                                         batidas_existentes.sort()
                                         
@@ -131,9 +134,30 @@ class RelogioEvoConsumer(AsyncWebsocketConsumer):
                                         registro.entrada_3 = batidas_existentes[4] if len(batidas_existentes) > 4 else None
                                         registro.saida_3 = batidas_existentes[5] if len(batidas_existentes) > 5 else None
                                         registro.save()
-                                        print(f"[Channels] Batida salva: {funcionario.nome_completo} - {data_batida} {hora_batida}")
+                                        LogRelogio.objects.create(
+                            tipo='batida',
+                            numero_serie='',
+                            mensagem=f'Batida salva: {funcionario.nome_completo} - {data_batida} às {hora_batida}'
+                        )
                     except Exception as e:
-                        print(f"Erro ao salvar batida do relógio: {e}")
+                        LogRelogio.objects.create(
+                            tipo='erro',
+                            numero_serie='',
+                            mensagem=f'Erro ao salvar batida: {str(e)}'
+                        )
+
+    @sync_to_async
+    def log(self, tipo, numero_serie, mensagem):
+        LogRelogio.objects.create(
+            tipo=tipo,
+            numero_serie=numero_serie or '',
+            mensagem=mensagem
+        )
+        # Mantém apenas os últimos 500 logs
+        excesso = LogRelogio.objects.count() - 500
+        if excesso > 0:
+            ids_antigos = LogRelogio.objects.values_list('id', flat=True).order_by('data_hora')[:excesso]
+            LogRelogio.objects.filter(id__in=list(ids_antigos)).delete()
 
     def get_current_time(self):
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")

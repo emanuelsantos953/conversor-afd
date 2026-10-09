@@ -3,17 +3,23 @@ import csv
 import io
 import json
 import time 
+import unicodedata
+import logging
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User, Group
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.contrib import messages
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from .forms import FuncionarioForm
-from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada, CpfIgnorado, Grupo
+from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada, CpfIgnorado, Grupo, LogRelogio
 from django.db import IntegrityError
 from django.db.models import Q  
 from datetime import datetime, date
 import calendar
+
+logger = logging.getLogger(__name__)
 
 # ==========================================
 # CONTROLE DE ACESSOS E MENU PRINCIPAL
@@ -48,7 +54,13 @@ def gerenciar_usuarios(request):
             
             # Atualiza a senha APENAS se o campo não estiver em branco
             if senha:
-                usuario_edit.set_password(senha)
+                try:
+                    validate_password(senha, usuario_edit)
+                    usuario_edit.set_password(senha)
+                except ValidationError as e:
+                    for error in e.messages:
+                        messages.error(request, f'Erro na senha: {error}')
+                    return redirect('gerenciar_usuarios')
             
             usuario_edit.save()
                 
@@ -62,13 +74,21 @@ def gerenciar_usuarios(request):
             if User.objects.filter(username=username).exists():
                 messages.error(request, f'O usuário {username} já existe!')
             else:
-                user = User.objects.create_user(username=username, password=senha)
-                
-                if acesso_conversor:
-                    grupo_conv, _ = Group.objects.get_or_create(name='Conversor')
-                    user.groups.add(grupo_conv)
+                user = User(username=username)
+                try:
+                    validate_password(senha, user)
+                    user.set_password(senha)
+                    user.save()
                     
-                messages.success(request, f'Usuário {username} criado com sucesso!')
+                    if acesso_conversor:
+                        grupo_conv, _ = Group.objects.get_or_create(name='Conversor')
+                        user.groups.add(grupo_conv)
+                        
+                    messages.success(request, f'Usuário {username} criado com sucesso!')
+                except ValidationError as e:
+                    for error in e.messages:
+                        messages.error(request, f'Erro na senha: {error}')
+                        
                 return redirect('gerenciar_usuarios')
 
     usuarios = list(User.objects.all().prefetch_related('groups'))
@@ -255,9 +275,19 @@ def salvar_ponto(request):
     return JsonResponse({'status': 'invalido'})
 
 
-# ==========================================
-# IMPORTAÇÃO / EXPORTAÇÃO AFD (TXT)
-# ==========================================
+def eh_batida_duplicada(nova_hora, batidas_existentes, tolerancia_segundos=120):
+    """
+    Retorna True se 'nova_hora' for considerada duplicada de alguma batida já existente
+    (mesma hora e minuto, ou diferença de segundos <= tolerancia_segundos).
+    """
+    if not nova_hora or not batidas_existentes:
+        return False
+    nova_seg = nova_hora.hour * 3600 + nova_hora.minute * 60 + nova_hora.second
+    for b in batidas_existentes:
+        b_seg = b.hour * 3600 + b.minute * 60 + b.second
+        if abs(nova_seg - b_seg) <= tolerancia_segundos or (nova_hora.hour == b.hour and nova_hora.minute == b.minute):
+            return True
+    return False
 
 @login_required
 def importar_afd(request):
@@ -354,7 +384,7 @@ def importar_afd(request):
                                         if hora_salva:
                                             batidas_existentes.append(hora_salva)
 
-                                    if hora_batida not in batidas_existentes and len(batidas_existentes) < 6:
+                                    if not eh_batida_duplicada(hora_batida, batidas_existentes) and len(batidas_existentes) < 6:
                                         batidas_existentes.append(hora_batida)
                                         batidas_existentes.sort()
                                         
@@ -508,6 +538,157 @@ def importar_funcionarios(request):
 
     return render(request, 'core/importar.html')
 
+def normalizar_texto(texto):
+    if not texto: return ""
+    return unicodedata.normalize('NFKD', str(texto)).encode('ASCII', 'ignore').decode('ASCII').lower().strip()
+
+def carregar_dataframe_planilha(arquivo):
+    """
+    Lê com segurança o arquivo enviado em qualquer formato comum:
+    - Excel moderno (.xlsx) com openpyxl
+    - Excel antigo (.xls) com xlrd
+    - CSV com múltiplos encodings (utf-8-sig, latin-1, cp1252, iso-8859-1, utf-8)
+      e delimitadores (automático, ;, ,, \t, |)
+    - Tabela HTML salva como .xls / .xlsx
+    """
+    conteudo = arquivo.read()
+    arquivo.seek(0)
+    
+    if not conteudo:
+        raise ValueError("O arquivo enviado está vazio.")
+        
+    df = None
+    erros = []
+
+    # 1. Tentar ler como Excel moderno (.xlsx)
+    try:
+        df = pd.read_excel(io.BytesIO(conteudo), engine='openpyxl', dtype=str)
+    except Exception as e:
+        erros.append(f"openpyxl: {e}")
+
+    # 2. Tentar ler como Excel antigo (.xls)
+    if df is None:
+        try:
+            df = pd.read_excel(io.BytesIO(conteudo), engine='xlrd', dtype=str)
+        except Exception as e:
+            erros.append(f"xlrd: {e}")
+
+    # 3. Tentar como CSV com múltiplos encodings e delimitadores
+    if df is None:
+        encodings = ['utf-8-sig', 'latin-1', 'cp1252', 'iso-8859-1', 'utf-8']
+        delimitadores = [None, ';', ',', '\t', '|']
+        for enc in encodings:
+            for sep in delimitadores:
+                try:
+                    if sep is None:
+                        df_temp = pd.read_csv(
+                            io.BytesIO(conteudo),
+                            encoding=enc,
+                            sep=None,
+                            engine='python',
+                            dtype=str
+                        )
+                    else:
+                        df_temp = pd.read_csv(
+                            io.BytesIO(conteudo),
+                            encoding=enc,
+                            sep=sep,
+                            dtype=str
+                        )
+                    if df_temp is not None and len(df_temp.columns) > 0:
+                        df = df_temp
+                        break
+                except Exception:
+                    pass
+            if df is not None:
+                break
+
+    # 4. Tentar como HTML se for tabela exportada
+    if df is None:
+        for enc in ['utf-8', 'latin-1', 'cp1252']:
+            try:
+                tabelas = pd.read_html(io.BytesIO(conteudo), encoding=enc)
+                if tabelas:
+                    df = tabelas[0].astype(str)
+                    break
+            except Exception:
+                pass
+
+    if df is None:
+        raise ValueError("Não foi possível processar o arquivo. Verifique se o formato é .csv, .xlsx ou .xls válido.")
+
+    # Limpar espaços e remover caracteres ocultos como BOM (\ufeff)
+    df.columns = [str(c).replace('\ufeff', '').strip() for c in df.columns]
+    return df
+
+def detectar_colunas(df_columns):
+    col_id = None
+    for col in df_columns:
+        norm = normalizar_texto(col)
+        if norm in ['id', 'matricula', 'pis', 'cpf', 'codigo', 'cracha', 'cartao', 'usuario']:
+            col_id = col
+            break
+    if not col_id:
+        for col in df_columns:
+            norm = normalizar_texto(col)
+            if any(term in norm for term in ['matricula', 'pis', 'cpf', 'codigo', 'cracha', 'cartao', 'id']):
+                col_id = col
+                break
+    if not col_id and len(df_columns) > 0:
+        col_id = df_columns[0]
+
+    col_data_hora = None
+    col_data = None
+    col_hora = None
+
+    for col in df_columns:
+        norm = normalizar_texto(col)
+        if norm in ['data/hora', 'data e hora', 'data_hora', 'datahora', 'marcacao', 'horario', 'data/horario', 'datetime']:
+            col_data_hora = col
+            break
+
+    if not col_data_hora:
+        for col in df_columns:
+            norm = normalizar_texto(col)
+            if norm == 'data':
+                col_data = col
+            elif norm in ['hora', 'horario']:
+                col_hora = col
+
+    if not col_data_hora and not (col_data and col_hora):
+        for col in df_columns:
+            norm = normalizar_texto(col)
+            if 'hora' in norm or 'marcacao' in norm:
+                col_data_hora = col
+                break
+
+    return col_id, col_data_hora, col_data, col_hora
+
+def parse_data_hora(texto):
+    if not texto or str(texto).strip().lower() in ['nan', 'none', '']:
+        return None
+    texto = str(texto).strip()
+    formatos = [
+        '%d/%m/%Y %H:%M:%S',
+        '%d/%m/%Y %H:%M',
+        '%d-%m-%Y %H:%M:%S',
+        '%d-%m-%Y %H:%M',
+        '%Y/%m/%d %H:%M:%S',
+        '%Y/%m/%d %H:%M',
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M',
+        '%d/%m/%y %H:%M:%S',
+        '%d/%m/%y %H:%M',
+        '%Y-%m-%dT%H:%M:%S',
+        '%Y-%m-%dT%H:%M',
+    ]
+    for fmt in formatos:
+        try:
+            return datetime.strptime(texto, fmt)
+        except ValueError:
+            pass
+    return None
+
 @login_required
 def importar_planilha(request):
     if request.method == 'POST':
@@ -517,19 +698,39 @@ def importar_planilha(request):
         
         if arquivo:
             try:
-                df = pd.read_excel(arquivo, dtype=str)
+                df = carregar_dataframe_planilha(arquivo)
             except Exception as e:
-                print(f"Tentando ler como CSV... Erro anterior: {e}")
-                arquivo.seek(0)
-                df = pd.read_csv(arquivo, sep=None, engine='python', dtype=str)
+                msg_erro = str(e)
+                logger.error(f"Erro ao carregar planilha no importar_planilha: {msg_erro}")
+                def stream_erro():
+                    yield f"""
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <style>
+                            body {{ background-color: #ffffff; color: #721c24; font-family: 'Cascadia Mono', monospace; padding: 20px; }}
+                            .error-box {{ background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 6px; padding: 20px; max-width: 650px; margin: 20px auto; }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class="error-box">
+                            <h3>❌ Erro ao ler a planilha</h3>
+                            <p><strong>Detalhes:</strong> {msg_erro}</p>
+                            <p>Por favor, certifique-se de que o arquivo é uma planilha (.csv, .xlsx ou .xls) válida e tente novamente.</p>
+                        </div>
+                    </body>
+                    </html>
+                    """
+                return StreamingHttpResponse(stream_erro())
 
-            df.columns = df.columns.str.strip()
+            col_id, col_data_hora, col_data, col_hora = detectar_colunas(df.columns)
             linhas = df.to_dict('records')
 
             def stream_planilha():
                 yield """
                 <html>
                 <head>
+                    <meta charset="UTF-8">
                     <style>
                         body { background-color: #ffffff; color: #000000; font-family: 'Cascadia Mono', monospace; padding: 20px; margin: 0; }
                         .log-line { margin: 2px 0; border-bottom: 1px solid #eee; }
@@ -547,94 +748,107 @@ def importar_planilha(request):
                 """
 
                 dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
-                funcionarios_atualizados = []
                 matriculas_desconhecidas = set()
+                total_processados = 0
 
                 for linha in linhas:
-                    matricula_txt = str(linha.get('ID', '')).strip()
-                    hora_completa_txt = str(linha.get('Hora', '')).strip()
-
-                    msg_log = ""
-                    status_css = "info"
-
-                    if not matricula_txt or matricula_txt == 'nan' or not hora_completa_txt or hora_completa_txt == 'nan':
-                        continue
-                        
-                    if MatriculaIgnorada.objects.filter(matricula=matricula_txt).exists() or CpfIgnorado.objects.filter(cpf=matricula_txt).exists() or PisIgnorado.objects.filter(pis=matricula_txt).exists():
-                        yield f"<div class='log-line warning'>[IGNORADO] ID {matricula_txt} está na lista negra.</div>"
-                        continue
-                        
                     try:
-                        dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M:%S')
-                    except ValueError:
-                        try:
-                            dt_obj = datetime.strptime(hora_completa_txt, '%d/%m/%Y %H:%M')
-                        except ValueError:
-                            try:
-                                dt_obj = datetime.strptime(hora_completa_txt, '%Y/%m/%d %H:%M:%S')
-                            except ValueError:
-                                try:
-                                    dt_obj = datetime.strptime(hora_completa_txt, '%Y/%m/%d %H:%M')
-                                except ValueError:
-                                    continue
-                            
-                    data_batida = dt_obj.date()
-                    hora_batida = dt_obj.time()
-                    
-                    funcionario = Funcionario.objects.filter(matricula=matricula_txt).first()
-                    if not funcionario:
-                        funcionario = Funcionario.objects.filter(cpf=matricula_txt).first()
-                    if not funcionario:
-                        funcionario = Funcionario.objects.filter(pis=matricula_txt).first()
-                    
-                    if funcionario:
-                        msg_log = f"[SUCESSO] {funcionario.nome_completo} - {data_batida} às {hora_batida}"
-                        status_css = "success"
+                        # Extrai identificador
+                        matricula_txt = ""
+                        if col_id and col_id in linha:
+                            matricula_txt = str(linha.get(col_id, '')).strip()
+                        elif 'ID' in linha:
+                            matricula_txt = str(linha.get('ID', '')).strip()
 
-                        if grupo_nome:
-                            g_obj, _ = Grupo.objects.get_or_create(nome=grupo_nome)
-                            if conflito_grupo == 'substituir':
-                                funcionario.grupos.set([g_obj])
+                        # Extrai data e hora
+                        hora_completa_txt = ""
+                        if col_data_hora and col_data_hora in linha:
+                            hora_completa_txt = str(linha.get(col_data_hora, '')).strip()
+                        elif col_data and col_hora and col_data in linha and col_hora in linha:
+                            d_val = str(linha.get(col_data, '')).strip()
+                            h_val = str(linha.get(col_hora, '')).strip()
+                            if d_val and h_val and d_val.lower() != 'nan' and h_val.lower() != 'nan':
+                                hora_completa_txt = f"{d_val} {h_val}"
+                        elif 'Hora' in linha:
+                            hora_completa_txt = str(linha.get('Hora', '')).strip()
+
+                        if not matricula_txt or matricula_txt.lower() == 'nan' or not hora_completa_txt or hora_completa_txt.lower() == 'nan':
+                            continue
+
+                        # Se a matrícula for float (ex: 123.0), converte para inteiro
+                        if matricula_txt.endswith('.0'):
+                            matricula_txt = matricula_txt[:-2]
+
+                        if MatriculaIgnorada.objects.filter(matricula=matricula_txt).exists() or CpfIgnorado.objects.filter(cpf=matricula_txt).exists() or PisIgnorado.objects.filter(pis=matricula_txt).exists():
+                            yield f"<div class='log-line warning'>[IGNORADO] ID {matricula_txt} está na lista negra.</div>"
+                            continue
+
+                        dt_obj = parse_data_hora(hora_completa_txt)
+                        if not dt_obj:
+                            yield f"<div class='log-line warning'>[AVISO] ID {matricula_txt}: Data/Hora '{hora_completa_txt}' não reconhecida. Linha ignorada.</div>"
+                            continue
+
+                        data_batida = dt_obj.date()
+                        hora_batida = dt_obj.time()
+
+                        funcionario = Funcionario.objects.filter(matricula=matricula_txt).first()
+                        if not funcionario:
+                            funcionario = Funcionario.objects.filter(cpf=matricula_txt).first()
+                        if not funcionario:
+                            funcionario = Funcionario.objects.filter(pis=matricula_txt).first()
+
+                        if funcionario:
+                            msg_log = f"[SUCESSO] {funcionario.nome_completo} - {data_batida} às {hora_batida}"
+                            status_css = "success"
+
+                            if grupo_nome:
+                                g_obj, _ = Grupo.objects.get_or_create(nome=grupo_nome)
+                                if conflito_grupo == 'substituir':
+                                    funcionario.grupos.set([g_obj])
+                                else:
+                                    funcionario.grupos.add(g_obj)
+
+                                msg_log += f" (Grupo {grupo_nome} atualizado)"
+
+                            registro, created = RegistroPonto.objects.get_or_create(
+                                funcionario=funcionario,
+                                data=data_batida,
+                                defaults={'dia_semana': dias_semana_pt[data_batida.weekday()]}
+                            )
+
+                            if registro.editado_manualmente:
+                                msg_log += " (Ignorado - Edição Manual)"
                             else:
-                                funcionario.grupos.add(g_obj)
-                            
-                            msg_log += f" (Grupo {grupo_nome} atualizado)"
-                            
-                        registro, created = RegistroPonto.objects.get_or_create(
-                            funcionario=funcionario,
-                            data=data_batida,
-                            defaults={'dia_semana': dias_semana_pt[data_batida.weekday()]}
-                        )
+                                batidas_existentes = []
+                                for campo in ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']:
+                                    hora_salva = getattr(registro, campo)
+                                    if hora_salva:
+                                        batidas_existentes.append(hora_salva)
 
-                        if registro.editado_manualmente:
-                            msg_log += " (Ignorado - Edição Manual)"
+                                if not eh_batida_duplicada(hora_batida, batidas_existentes) and len(batidas_existentes) < 6:
+                                    batidas_existentes.append(hora_batida)
+                                    batidas_existentes.sort()
+
+                                    registro.entrada_1 = batidas_existentes[0] if len(batidas_existentes) > 0 else None
+                                    registro.saida_1 = batidas_existentes[1] if len(batidas_existentes) > 1 else None
+                                    registro.entrada_2 = batidas_existentes[2] if len(batidas_existentes) > 2 else None
+                                    registro.saida_2 = batidas_existentes[3] if len(batidas_existentes) > 3 else None
+                                    registro.entrada_3 = batidas_existentes[4] if len(batidas_existentes) > 4 else None
+                                    registro.saida_3 = batidas_existentes[5] if len(batidas_existentes) > 5 else None
+                                    registro.save()
+                                    total_processados += 1
+                                else:
+                                    msg_log += " (Dia Cheio ou Duplicada)"
                         else:
-                            batidas_existentes = []
-                            for campo in ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']:
-                                hora_salva = getattr(registro, campo)
-                                if hora_salva:
-                                    batidas_existentes.append(hora_salva)
+                            msg_log = f"[DESCONHECIDO] ID/CPF {matricula_txt} não encontrado no banco."
+                            status_css = "error"
+                            matriculas_desconhecidas.add(matricula_txt)
 
-                            if hora_batida not in batidas_existentes and len(batidas_existentes) < 6:
-                                batidas_existentes.append(hora_batida)
-                                batidas_existentes.sort()
+                        yield f"<div class='log-line {status_css}'>{msg_log}</div>"
+                        yield "<script>window.scrollTo(0, document.body.scrollHeight);</script>"
 
-                                registro.entrada_1 = batidas_existentes[0] if len(batidas_existentes) > 0 else None
-                                registro.saida_1 = batidas_existentes[1] if len(batidas_existentes) > 1 else None
-                                registro.entrada_2 = batidas_existentes[2] if len(batidas_existentes) > 2 else None
-                                registro.saida_2 = batidas_existentes[3] if len(batidas_existentes) > 3 else None
-                                registro.entrada_3 = batidas_existentes[4] if len(batidas_existentes) > 4 else None
-                                registro.saida_3 = batidas_existentes[5] if len(batidas_existentes) > 5 else None
-                                registro.save()
-                            else:
-                                msg_log += " (Dia Cheio ou Duplicada)"
-                    else:
-                        msg_log = f"[DESCONHECIDO] ID/CPF {matricula_txt} não encontrado no banco."
-                        status_css = "error"
-                        matriculas_desconhecidas.add(matricula_txt)
-
-                    yield f"<div class='log-line {status_css}'>{msg_log}</div>"
-                    yield "<script>window.scrollTo(0, document.body.scrollHeight);</script>"
+                    except Exception as err_linha:
+                        yield f"<div class='log-line error'>[ERRO NA LINHA] {str(err_linha)}</div>"
 
                 yield "</div>"
 
@@ -646,7 +860,7 @@ def importar_planilha(request):
                     yield "</ul>"
                     yield "<p>Copie os números acima e cadastre-os.</p>"
                 else:
-                    yield "<div class='summary success'>✅ Importação concluída com sucesso total!</div>"
+                    yield f"<div class='summary success'>✅ Importação concluída com sucesso! ({total_processados} batidas registradas/atualizadas)</div>"
 
                 yield "</body></html>"
 
@@ -760,13 +974,18 @@ def verificar_conflitos_grupo(request):
         # Se for Excel/CSV
         else:
             try:
-                df = pd.read_excel(arquivo, dtype=str)
-            except:
-                arquivo.seek(0)
-                df = pd.read_csv(arquivo, sep=None, engine='python', dtype=str)
-            
-            if 'ID' in df.columns:
-                ids_identificados.update(df['ID'].dropna().unique())
+                df = carregar_dataframe_planilha(arquivo)
+                col_id, _, _, _ = detectar_colunas(df.columns)
+                if col_id and col_id in df.columns:
+                    for val in df[col_id].dropna().unique():
+                        v_str = str(val).strip()
+                        if v_str.endswith('.0'):
+                            v_str = v_str[:-2]
+                        if v_str and v_str.lower() != 'nan':
+                            ids_identificados.add(v_str)
+            except Exception as e:
+                logger.error(f"Erro em verificar_conflitos_grupo ao ler arquivo: {e}")
+                return JsonResponse({'conflitos': [], 'aviso': str(e)})
 
         # Verifica quais desses funcionários já têm grupos
         conflitos = []
@@ -785,3 +1004,25 @@ def verificar_conflitos_grupo(request):
         return JsonResponse({'conflitos': conflitos})
 
     return JsonResponse({'status': 'erro'})
+
+@login_required
+def monitor_relogio(request):
+    if request.GET.get('format') == 'json':
+        logs = LogRelogio.objects.all()[:100]
+        dados = [{
+            'tipo': log.tipo,
+            'tipo_display': log.get_tipo_display(),
+            'numero_serie': log.numero_serie,
+            'mensagem': log.mensagem,
+            'data_hora': log.data_hora.strftime('%d/%m/%Y %H:%M:%S'),
+        } for log in logs]
+        return JsonResponse({'logs': dados})
+
+    logs = LogRelogio.objects.all()[:100]
+    return render(request, 'core/monitor_relogio.html', {'logs': logs})
+
+@login_required
+def limpar_logs_relogio(request):
+    if request.method == 'POST':
+        LogRelogio.objects.all().delete()
+    return redirect('monitor_relogio')

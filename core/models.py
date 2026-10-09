@@ -61,3 +61,23 @@ class CpfIgnorado(models.Model):
 
     def __str__(self):
         return f"CPF Ignorado: {self.cpf}"
+
+class LogRelogio(models.Model):
+    TIPO_CHOICES = [
+        ('conexao', '🟢 Conexão'),
+        ('desconexao', '🔴 Desconexão'),
+        ('batida', '✅ Batida Salva'),
+        ('desconhecido', '⚠️ Desconhecido'),
+        ('erro', '❌ Erro'),
+        ('mensagem', '📩 Mensagem'),
+    ]
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    numero_serie = models.CharField(max_length=50, blank=True, default='')
+    mensagem = models.TextField()
+    data_hora = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-data_hora']
+
+    def __str__(self):
+        return f"[{self.tipo}] {self.numero_serie} - {self.data_hora.strftime('%d/%m/%Y %H:%M:%S')}"

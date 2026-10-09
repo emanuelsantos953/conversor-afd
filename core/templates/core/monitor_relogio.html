@@ -1,0 +1,174 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Monitor do Relógio Ponto</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+        }
+        .status-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ccc;
+            flex-shrink: 0;
+            transition: background 0.3s;
+        }
+        .status-dot.online { background: #28a745; box-shadow: 0 0 6px #28a74580; }
+        .status-dot.offline { background: #dc3545; }
+        #status-text { font-weight: 600; font-size: 15px; }
+        #sn-text { color: #6c757d; font-size: 13px; }
+        #ultimo-evento { color: #6c757d; font-size: 13px; margin-left: auto; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { padding: 8px 12px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background: #f1f3f4; font-weight: 600; }
+        tr:hover { background: #f8f9fa; }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .badge-conexao    { background: #d4edda; color: #155724; }
+        .badge-desconexao { background: #f8d7da; color: #721c24; }
+        .badge-batida     { background: #d1ecf1; color: #0c5460; }
+        .badge-desconhecido { background: #fff3cd; color: #856404; }
+        .badge-erro       { background: #f8d7da; color: #721c24; }
+        .badge-mensagem   { background: #e2e3e5; color: #383d41; }
+
+        .btn-danger-sm {
+            padding: 6px 14px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-danger-sm:hover { background: #c82333; }
+        .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        #atualizando { font-size: 12px; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="card" style="max-width: 1100px; margin: 20px auto;">
+        <div class="card-header">
+            📡 Monitor do Relógio Ponto (Evo Sistemas)
+        </div>
+        <div class="card-body">
+
+            <div class="status-bar">
+                <div class="status-dot offline" id="status-dot"></div>
+                <span id="status-text">Verificando conexão...</span>
+                <span id="sn-text"></span>
+                <span id="ultimo-evento">—</span>
+            </div>
+
+            <div class="toolbar">
+                <strong>Últimos 100 eventos</strong>
+                <span id="atualizando">⟳ Atualiza a cada 5s</span>
+                <form method="post" action="{% url 'limpar_logs_relogio' %}" style="margin-left: auto;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-danger-sm" onclick="return confirm('Limpar todos os logs?')">
+                        🗑 Limpar Logs
+                    </button>
+                </form>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Tipo</th>
+                        <th>N° Série</th>
+                        <th>Mensagem</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-logs">
+                    {% for log in logs %}
+                    <tr>
+                        <td style="white-space: nowrap;">{{ log.data_hora|date:"d/m/Y H:i:s" }}</td>
+                        <td><span class="badge badge-{{ log.tipo }}">{{ log.get_tipo_display }}</span></td>
+                        <td>{{ log.numero_serie|default:"—" }}</td>
+                        <td>{{ log.mensagem }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" style="text-align:center; color:#999;">Nenhum evento registrado ainda. Aguardando conexão do relógio...</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <a href="{% url 'listar_funcionarios' %}" style="text-decoration: none;">
+                <button class="btn btn-secondary" style="margin-top: 20px;">← Voltar</button>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        function atualizarLogs() {
+            fetch('?format=json')
+                .then(r => r.json())
+                .then(data => {
+                    const logs = data.logs;
+                    const tbody = document.getElementById('tabela-logs');
+                    const dot = document.getElementById('status-dot');
+                    const statusText = document.getElementById('status-text');
+                    const snText = document.getElementById('sn-text');
+                    const ultimoEvento = document.getElementById('ultimo-evento');
+
+                    // Atualiza status de conexão
+                    const ultimoConectado = logs.find(l => l.tipo === 'conexao');
+                    const ultimoDesconectado = logs.find(l => l.tipo === 'desconexao');
+                    
+                    // Considera online se o log mais recente de conexão/desconexão for de conexão
+                    let online = false;
+                    let snOnline = '';
+                    if (ultimoConectado) {
+                        const idxConexao = logs.indexOf(ultimoConectado);
+                        const idxDesconexao = ultimoDesconectado ? logs.indexOf(ultimoDesconectado) : 9999;
+                        online = idxConexao < idxDesconexao;
+                        if (online) snOnline = ultimoConectado.numero_serie;
+                    }
+
+                    dot.className = 'status-dot ' + (online ? 'online' : 'offline');
+                    statusText.textContent = online ? '🟢 Relógio Conectado' : '🔴 Relógio Desconectado';
+                    snText.textContent = snOnline ? `S/N: ${snOnline}` : '';
+                    ultimoEvento.textContent = logs.length > 0 ? `Último evento: ${logs[0].data_hora}` : '—';
+
+                    // Atualiza tabela
+                    if (logs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;">Nenhum evento registrado ainda.</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = logs.map(log => `
+                        <tr>
+                            <td style="white-space:nowrap;">${log.data_hora}</td>
+                            <td><span class="badge badge-${log.tipo}">${log.tipo_display}</span></td>
+                            <td>${log.numero_serie || '—'}</td>
+                            <td>${log.mensagem}</td>
+                        </tr>
+                    `).join('');
+                })
+                .catch(() => {});
+        }
+
+        // Atualiza imediatamente e depois a cada 5 segundos
+        atualizarLogs();
+        setInterval(atualizarLogs, 5000);
+    </script>
+</body>
+</html>

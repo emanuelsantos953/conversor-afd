@@ -26,4 +26,6 @@ urlpatterns = [
     path('gerenciar-grupos/', views.gerenciar_grupos, name='gerenciar_grupos'),
     path('remover-ignorado/<str:tipo>/<int:id>/', views.remover_ignorado, name='remover_ignorado'),
     path('verificar-conflitos-grupo/', views.verificar_conflitos_grupo, name='verificar_conflitos_grupo'),
+    path('monitor-relogio/', views.monitor_relogio, name='monitor_relogio'),
+    path('monitor-relogio/limpar/', views.limpar_logs_relogio, name='limpar_logs_relogio'),
 ]
