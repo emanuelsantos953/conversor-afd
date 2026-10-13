@@ -10,18 +10,30 @@ SECRET_KEY = 'django-insecure-)3-n%&ge+zyi=mnexw00g6e)i1)prwfx5oo3vtk$4%25y*a3*#
 DEBUG = False
 
 # Adicionamos seu IP público e o IP interno aqui
-ALLOWED_HOSTS = ['192.168.0.9', 'localhost', '45.163.40.74', 'sistemasweb.taquarituba.sp.gov.br']
+ALLOWED_HOSTS = ['192.168.0.9', 'localhost', '127.0.0.1', '45.163.40.74', 'sistemasweb.taquarituba.sp.gov.br', '*']
 
 # Adicionamos origens confiáveis para que o Django aceite requisições (como o login) de acessos externos
 CSRF_TRUSTED_ORIGINS = [
-    'http://45.163.40.74:9445',
-    'https://45.163.40.74:9445',
-    'http://45.163.40.74',
-    'https://45.163.40.74',
-    'http://192.168.0.9',
-    'https://192.168.0.9',
-    'https://sistemasweb.taquarituba.sp.gov.br',
     'https://sistemasweb.taquarituba.sp.gov.br:9445',
+    'https://sistemasweb.taquarituba.sp.gov.br',
+    'http://sistemasweb.taquarituba.sp.gov.br:9445',
+    'http://sistemasweb.taquarituba.sp.gov.br',
+    'https://192.168.0.9:9445',
+    'http://192.168.0.9:9445',
+    'https://192.168.0.9',
+    'http://192.168.0.9',
+    'https://45.163.40.74:9445',
+    'http://45.163.40.74:9445',
+    'https://45.163.40.74',
+    'http://45.163.40.74',
+    'https://localhost:9445',
+    'http://localhost:9445',
+    'https://127.0.0.1:9445',
+    'http://127.0.0.1:9445',
+    'http://192.168.0.9:9447',
+    'https://192.168.0.9:9447',
+    'http://192.168.0.9:9448',
+    'https://192.168.0.9:9448',
 ]
 
 # Informa ao Django que ele está atrás do Nginx com SSL
@@ -122,6 +134,16 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_REDIRECT_URL = '/'
 LOGIN_URL = '/login/'
+
+# Configurações de Autenticação e Integração Fiorilli (SIPWebservices)
+FIORILLI_API_BASE_URL = 'http://taquaritubasp4.dcfiorilli.com.br:8080/sipwebservices/api'
+FIORILLI_ENTIDADE_CODIGO = '001'
+FIORILLI_API_TIMEOUT = 10
+
+AUTHENTICATION_BACKENDS = [
+    'core.fiorilli_auth.FiorilliBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 LOGGING = {
     'version': 1,

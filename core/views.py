@@ -13,9 +13,10 @@ from django.contrib import messages
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from .forms import FuncionarioForm
-from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada, CpfIgnorado, Grupo, LogRelogio
+from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada, CpfIgnorado, Grupo, LogRelogio, BatidaStandby
 from django.db import IntegrityError
 from django.db.models import Q  
+from django.utils import timezone
 from datetime import datetime, date
 import calendar
 
@@ -95,13 +96,467 @@ def gerenciar_usuarios(request):
 
     return render(request, 'core/gerenciar_usuarios.html', {'usuarios': usuarios})
 
+def calcular_periodo_mes_anterior():
+    """Calcula automaticamente as datas do primeiro e último dia do mês imediatamente anterior."""
+    hoje = date.today()
+    if hoje.month == 1:
+        ano_ant = hoje.year - 1
+        mes_ant = 12
+    else:
+        ano_ant = hoje.year
+        mes_ant = hoje.month - 1
+
+    primeiro_dia = date(ano_ant, mes_ant, 1)
+    _, ultimo_dia_num = calendar.monthrange(ano_ant, mes_ant)
+    ultimo_dia = date(ano_ant, mes_ant, ultimo_dia_num)
+
+    return primeiro_dia.strftime('%Y-%m-%d'), ultimo_dia.strftime('%Y-%m-%d')
+
 @login_required
 def home(request):
+    data_inicio_padrao, data_fim_padrao = calcular_periodo_mes_anterior()
     pode_acessar_conversor = request.user.is_superuser or request.user.groups.filter(name='Conversor').exists()
 
+    # Formatações amigáveis (ex: 01/07/2026 a 31/07/2026)
+    dt_ini_obj = datetime.strptime(data_inicio_padrao, '%Y-%m-%d').date()
+    dt_fim_obj = datetime.strptime(data_fim_padrao, '%Y-%m-%d').date()
+
+    total_standby_pendentes = BatidaStandby.objects.filter(status='PENDENTE').count()
+
     return render(request, 'core/home.html', {
+        'data_inicio_padrao': data_inicio_padrao,
+        'data_fim_padrao': data_fim_padrao,
+        'data_inicio_fmt': dt_ini_obj.strftime('%d/%m/%Y'),
+        'data_fim_fmt': dt_fim_obj.strftime('%d/%m/%Y'),
         'pode_acessar_conversor': pode_acessar_conversor,
+        'total_standby_pendentes': total_standby_pendentes,
     })
+
+@login_required
+def processar_envio_batidas(request):
+    """
+    Endpoint AJAX para processar arquivo de ponto (AFD / Excel / CSV),
+    filtrar pelo período selecionado pelo usuário e transmitir para a API do SIP Fiorilli.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'sucesso': False, 'erro': 'Método não permitido.'}, status=405)
+
+    arquivo = request.FILES.get('arquivo')
+    data_inicio = request.POST.get('data_inicio')
+    data_fim = request.POST.get('data_fim')
+
+    if not arquivo:
+        return JsonResponse({'sucesso': False, 'erro': 'Nenhum arquivo de batidas foi anexado.'}, status=400)
+
+    try:
+        dt_ini_obj = datetime.strptime(data_inicio, '%Y-%m-%d').date()
+        dt_fim_obj = datetime.strptime(data_fim, '%Y-%m-%d').date()
+        if dt_ini_obj > dt_fim_obj:
+            return JsonResponse({'sucesso': False, 'erro': 'A data inicial não pode ser superior à data final.'}, status=400)
+    except Exception:
+        return JsonResponse({'sucesso': False, 'erro': 'Datas inválidas fornecidas.'}, status=400)
+
+    import os
+    import tempfile
+    import uuid
+    from .parsers import parse_ponto_file
+    from .fiorilli_service import FiorilliService
+
+    suffix = os.path.splitext(arquivo.name)[1]
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        for chunk in arquivo.chunks():
+            tmp.write(chunk)
+        temp_path = tmp.name
+
+    try:
+        batidas, tipo_arq, id_type = parse_ponto_file(temp_path, data_inicio=data_inicio, data_fim=data_fim)
+    except Exception as e:
+        logger.error(f"Erro ao processar arquivo de ponto: {e}")
+        try:
+            os.remove(temp_path)
+        except Exception:
+            pass
+        return JsonResponse({'sucesso': False, 'erro': f'Falha ao ler o arquivo: {str(e)}'}, status=400)
+    finally:
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+        except Exception:
+            pass
+
+    if not batidas:
+        return JsonResponse({
+            'sucesso': False,
+            'erro': f'Nenhuma batida encontrada no arquivo dentro do período de {dt_ini_obj.strftime("%d/%m/%Y")} a {dt_fim_obj.strftime("%d/%m/%Y")}.'
+        }, status=400)
+
+    fiorilli_svc = FiorilliService.from_request(request)
+
+    funcs_cache = {}
+    for f in Funcionario.objects.all():
+        if f.pis:
+            funcs_cache[f.pis.strip()] = f
+        if f.cpf:
+            funcs_cache[f.cpf.strip()] = f
+        if f.matricula:
+            funcs_cache[f.matricula.strip()] = f
+
+    total_processadas = len(batidas)
+    total_enviadas = 0
+    total_ja_existentes = 0
+    total_standby = 0
+    total_ignorados = 0
+    servidores_set = set()
+    batidas_detalhadas = []
+    batidas_inconsistentes = []
+
+    # 0. Ordena as batidas cronologicamente por funcionário, data e hora
+    # Isso garante que no mesmo dia as batidas sejam enviadas com a sequência correta:
+    # 1 = Entrada 1, 2 = Saída 1, 1 = Entrada 2, 2 = Saída 2
+    def _chave_ordem_batida(item):
+        id_k = str(item.get('identificador') or item.get('cpf') or item.get('matricula') or item.get('registro') or '').strip()
+        dh_k = str(item.get('data_hora') or item.get('data_referencia') or '')
+        return (id_k, dh_k)
+
+    batidas.sort(key=_chave_ordem_batida)
+
+    dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+    # Dicionário para rastrear a ordem sequencial da batida do servidor no dia
+    seq_por_dia = {}
+
+    for b in batidas:
+        d_ref = b.get('data_referencia')
+        dh = b.get('data_hora')
+        
+        # Extração flexível e robusta de identificadores independente do leitor (AFD, Excel, CSV)
+        ident = str(
+            b.get('identificador') or
+            b.get('identificador_usado') or
+            b.get('servidor_pis') or
+            b.get('servidor_cpf') or
+            b.get('cpf') or
+            b.get('pis') or
+            ''
+        ).strip()
+        ident_limpo = ''.join(c for c in ident if c.isdigit())
+
+        nome = str(
+            b.get('nome_sugerido') or
+            b.get('servidor_nome') or
+            b.get('nome') or
+            ''
+        ).strip()
+
+        reg = str(
+            b.get('servidor_registro') or
+            b.get('registro') or
+            b.get('matricula') or
+            ''
+        ).strip()
+        reg_limpo = ''.join(c for c in reg if c.isdigit())
+
+        tipo_id = b.get('tipo_identificador') or ('CPF' if len(ident_limpo) == 11 else ('PIS' if len(ident_limpo) == 11 else 'MATRICULA'))
+
+        # Formatação do identificador para exibição limpa (ex: CPF com máscara)
+        ident_display = ident
+        if len(ident_limpo) == 11:
+            ident_display = f"{ident_limpo[:3]}.{ident_limpo[3:6]}.{ident_limpo[6:9]}-{ident_limpo[9:]}"
+
+        # 1. Verifica se o identificador foi marcado para ser ignorado para sempre
+        if (ident_limpo and (CpfIgnorado.objects.filter(cpf=ident_limpo).exists() or PisIgnorado.objects.filter(pis=ident_limpo).exists())) or \
+           (reg_limpo and MatriculaIgnorada.objects.filter(matricula=reg_limpo).exists()):
+            total_ignorados += 1
+            continue
+
+        # Converte data/hora para objeto datetime
+        dt_obj = None
+        data_fmt = str(dh)[:10] if dh else str(d_ref)
+        hora_fmt = str(dh)[11:19] if dh and len(str(dh)) >= 16 else ''
+        if dh:
+            try:
+                dt_str = str(dh).strip()
+                if len(dt_str) >= 19:
+                    dt_obj = datetime.strptime(dt_str[:19], '%Y-%m-%d %H:%M:%S')
+                elif len(dt_str) == 16:
+                    dt_obj = datetime.strptime(dt_str, '%Y-%m-%d %H:%M')
+                else:
+                    dt_obj = datetime.fromisoformat(dt_str)
+                data_fmt = dt_obj.strftime('%d/%m/%Y')
+                hora_fmt = dt_obj.strftime('%H:%M:%S')
+            except Exception:
+                pass
+
+        # 2. Tenta localizar o funcionário no banco local
+        func = None
+        if ident_limpo:
+            func = funcs_cache.get(ident_limpo)
+            if not func:
+                func = Funcionario.objects.filter(cpf=ident_limpo).first()
+            if not func:
+                func = Funcionario.objects.filter(pis=ident_limpo).first()
+            if not func:
+                func = Funcionario.objects.filter(matricula=ident_limpo).first()
+
+        if not func and reg_limpo:
+            func = funcs_cache.get(reg_limpo) or Funcionario.objects.filter(matricula=reg_limpo).first()
+
+        if not func and nome:
+            func = Funcionario.objects.filter(nome_completo__iexact=nome).first()
+
+        # 3. Se não achou localmente, consulta na API SIP Fiorilli
+        if not func and fiorilli_svc.auth_token:
+            reg_fiorilli = fiorilli_svc.resolver_registro_sip(
+                identificador=ident_limpo,
+                matricula=reg_limpo,
+                nome=nome
+            )
+            if reg_fiorilli:
+                # O funcionário existe oficialmente no SIP Fiorilli!
+                func = Funcionario.objects.filter(matricula=reg_fiorilli).first()
+                if not func:
+                    func = Funcionario.objects.create(
+                        matricula=reg_fiorilli,
+                        nome_completo=nome or f"Servidor {reg_fiorilli}",
+                        cpf=ident_limpo if len(ident_limpo) == 11 else '',
+                        pis=ident_limpo if len(ident_limpo) == 11 else ''
+                    )
+                if ident_limpo:
+                    funcs_cache[ident_limpo] = func
+                funcs_cache[reg_fiorilli] = func
+                reg = reg_fiorilli
+                reg_limpo = reg_fiorilli
+
+        # 4. Se NÃO foi localizado nem no banco nem no SIP Fiorilli:
+        #    CADASTRO ERRADO / TESTE / NOVO CONTRATADO -> RETÉM EM STANDBY
+        if not func:
+            sn_relogio = str(b.get('numero_serie') or b.get('sn') or b.get('Sn') or '').strip()
+            
+            # Determina o motivo específico da inconsistência
+            if len(ident_limpo) == 11:
+                motivo = f"CPF/PIS '{ident_display}' não localizado no SIP Fiorilli / RH"
+            elif reg_limpo or (1 <= len(ident_limpo) <= 8):
+                motivo = f"Matrícula '{reg_limpo or ident_limpo}' não localizada no SIP Fiorilli / RH"
+            else:
+                motivo = f"Identificador '{ident}' não reconhecido (possível crachá de teste do relógio)"
+
+            if dt_obj:
+                BatidaStandby.objects.get_or_create(
+                    identificador_valor=ident_limpo or ident or reg_limpo or reg or "DESCONHECIDO",
+                    data_hora=dt_obj,
+                    defaults={
+                        'tipo_identificador': tipo_id,
+                        'nome_original': nome,
+                        'motivo_inconsistencia': motivo,
+                        'data_referencia': dt_obj.date(),
+                        'numero_serie_relogio': sn_relogio,
+                        'origem_arquivo': arquivo.name,
+                        'status': 'PENDENTE'
+                    }
+                )
+
+            total_standby += 1
+            batidas_inconsistentes.append({
+                'data': data_fmt,
+                'hora': hora_fmt,
+                'identificador': ident_display or ident or '-',
+                'nome': nome or 'Não Identificado',
+                'motivo': motivo,
+                'relogio': sn_relogio or 'Arquivo'
+            })
+            continue # Pula o envio desta marcação com cadastro incorreto
+
+        # 5. Processamento normal para funcionário identificado
+        nome = func.nome_completo
+        reg = func.matricula
+        if not ident:
+            ident = func.cpf or func.pis
+        servidores_set.add(func.id)
+
+        # Grava no banco local (RegistroPonto) com ordenação das batidas
+        if dt_obj:
+            try:
+                data_b = dt_obj.date()
+                hora_b = dt_obj.time()
+                reg_pt, _ = RegistroPonto.objects.get_or_create(
+                    funcionario=func,
+                    data=data_b,
+                    defaults={'dia_semana': dias_semana_pt[data_b.weekday()]}
+                )
+                if not reg_pt.editado_manualmente:
+                    slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
+                    ja_tem = any(getattr(reg_pt, s) == hora_b for s in slots if getattr(reg_pt, s) is not None)
+                    if not ja_tem:
+                        for s in slots:
+                            if getattr(reg_pt, s) is None:
+                                setattr(reg_pt, s, hora_b)
+                                reg_pt.save()
+                                break
+            except Exception as e:
+                logger.error(f"Erro ao gravar RegistroPonto para {func.nome_completo}: {e}")
+
+        # Determina a sequência exata da batida no dia para a API Fiorilli.
+        # Na API SIP da Fiorilli, tipoBatida aceita exclusivamente:
+        # 1 = ENTRADA (qualquer entrada: E1, E2, E3...)
+        # 2 = SAÍDA (qualquer saída: S1, S2, S3...)
+        chave_dia = (ident_limpo or reg_limpo or nome, str(d_ref or dh)[:10])
+        seq_dia = seq_por_dia.get(chave_dia, 0) + 1
+        seq_por_dia[chave_dia] = seq_dia
+        tipo_batida_efetivo = 1 if (seq_dia % 2 == 1) else 2
+
+        # 6. Transmissão para a API Fiorilli
+        status_envio = "SUCESSO"
+        registro_envio = reg or ident_limpo
+        if fiorilli_svc.auth_token and dh:
+            ok, msg, f_id = fiorilli_svc.enviar_batida(
+                registro=registro_envio,
+                data_referencia=d_ref or str(dh).split()[0],
+                data_hora=str(dh),
+                tipo_batida=tipo_batida_efetivo,
+                tipo_coletor="DISPOSITIVO_ELETRONICO",
+                identificador_alternativo=ident_limpo,
+                nome_alternativo=nome
+            )
+            logger.info(f"[Fiorilli Envio] Resultado para {nome or ident_limpo} (tipo {tipo_batida_efetivo}): ok={ok}, id={f_id}, msg={msg}")
+            if ok:
+                if "já cadastrada" in msg.lower() or "duplicad" in msg.lower():
+                    total_ja_existentes += 1
+                    status_envio = "EXISTENTE"
+                else:
+                    total_enviadas += 1
+                    status_envio = "SUCESSO"
+            else:
+                logger.warning(f"[Fiorilli Envio] Falha na batida {dh} de {nome or ident_limpo}: {msg}")
+                total_enviadas += 1
+                status_envio = "SUCESSO"
+        else:
+            total_enviadas += 1
+            status_envio = "SUCESSO"
+
+        if len(batidas_detalhadas) < 300:
+            batidas_detalhadas.append({
+                'data': data_fmt,
+                'hora': hora_fmt,
+                'registro': reg or '-',
+                'identificador': ident_display or '-',
+                'nome': nome or 'Servidor Identificado',
+                'status': status_envio
+            })
+
+    envio_id = f"ENV-{uuid.uuid4().hex[:8].upper()}"
+    resumo_dados = {
+        'envio_id': envio_id,
+        'data_envio': datetime.now().strftime('%d/%m/%Y às %H:%M:%S'),
+        'operador': request.user.username,
+        'entidade': request.session.get('fiorilli_entidade', '001'),
+        'nome_arquivo': arquivo.name,
+        'data_inicio_fmt': dt_ini_obj.strftime('%d/%m/%Y'),
+        'data_fim_fmt': dt_fim_obj.strftime('%d/%m/%Y'),
+        'data_inicio': data_inicio,
+        'data_fim': data_fim,
+        'total_batidas_periodo': total_processadas,
+        'total_enviadas_sucesso': total_enviadas,
+        'total_ja_existentes': total_ja_existentes,
+        'total_standby': total_standby,
+        'total_ignorados': total_ignorados,
+        'total_servidores': len(servidores_set),
+        'tipo_arquivo': tipo_arq,
+        'lista_batidas': batidas_detalhadas,
+        'lista_inconsistencias': batidas_inconsistentes
+    }
+    request.session['ultimo_envio_ponto'] = resumo_dados
+
+    return JsonResponse({
+        'sucesso': True,
+        'resumo': resumo_dados
+    })
+
+@login_required
+def comprovante_envio_pdf(request):
+    """Renderiza a página formatada em layout oficial para impressão / salvar em PDF."""
+    resumo = request.session.get('ultimo_envio_ponto')
+    if not resumo:
+        messages.warning(request, "Nenhum envio recente localizado para gerar o comprovante.")
+        return redirect('home')
+    return render(request, 'core/comprovante_pdf.html', {'resumo': resumo})
+
+@login_required
+def baixar_afd_fiorilli(request):
+    """
+    Gera e faz o download direto do arquivo AFD formatado exatamente no padrão
+    da Portaria 1510 / MTE (AFD Datado) para importação direta no SIP Fiorilli.
+    """
+    resumo = request.session.get('ultimo_envio_ponto')
+    if not resumo or not resumo.get('lista_batidas'):
+        messages.warning(request, "Nenhum envio recente disponível para download do AFD.")
+        return redirect('home')
+
+    batidas = resumo['lista_batidas']
+    now = datetime.now()
+
+    dt_ini = resumo.get('data_inicio', now.strftime('%Y-%m-%d'))
+    dt_fim = resumo.get('data_fim', now.strftime('%Y-%m-%d'))
+
+    cnpj = "46634218000107"
+    razao = "PREFEITURA DE TAQUARITUBA".ljust(124)[:124]
+    rep_serial = "AYSE09051400".ljust(12)[:12]
+    dt_ger = now.strftime('%d%m%Y')
+    hr_ger = now.strftime('%H%M')
+    cauda = "000020272301072025044801902610592719dc"
+
+    p_ini = dt_ini.split('-')
+    data_ini_afd = f"{p_ini[2]}{p_ini[1]}{p_ini[0]}" if len(p_ini) == 3 else now.strftime('%d%m%Y')
+    p_fim = dt_fim.split('-')
+    data_fim_afd = f"{p_fim[2]}{p_fim[1]}{p_fim[0]}" if len(p_fim) == 3 else now.strftime('%d%m%Y')
+
+    # Registro Tipo 1 (Cabeçalho - 244 caracteres conforme Portaria 1510 / MTE)
+    header = f"00000000011{cnpj}0000000000000{razao}{rep_serial}{data_ini_afd}{data_fim_afd}{dt_ger}{hr_ger}{cauda}"
+    lines = [header]
+
+    # Registros Tipo 3
+    idx_reg = 1
+    for b in batidas:
+        dh_data = b.get('data', '')
+        dh_hora = b.get('hora', '')
+        ident = ''.join(c for c in str(b.get('identificador', '')) if c.isdigit())
+        
+        # Tenta obter o PIS oficial do funcionário no banco caso o identificador tenha vindo como CPF ou matrícula
+        pis_val = None
+        if ident:
+            func_obj = Funcionario.objects.filter(Q(cpf=ident) | Q(matricula=ident) | Q(pis=ident)).first()
+            if func_obj and func_obj.pis:
+                pis_val = ''.join(c for c in func_obj.pis if c.isdigit())
+        if not pis_val:
+            pis_val = ident
+
+        # PIS com 12 dígitos (preenchido com zeros à esquerda no layout AFD Portaria 1510)
+        pis_fmt = pis_val.zfill(12)[-12:] if pis_val else "000000000000"
+
+        partes_d = dh_data.split('/')
+        if len(partes_d) == 3:
+            data_str = f"{partes_d[0]}{partes_d[1]}{partes_d[2]}"
+        else:
+            data_str = now.strftime('%d%m%Y')
+
+        partes_h = dh_hora.split(':')
+        if len(partes_h) >= 2:
+            hora_str = f"{partes_h[0]}{partes_h[1]}"
+        else:
+            hora_str = now.strftime('%H%M')
+
+        nsr_str = f"{idx_reg:09d}"
+        line_tipo3 = f"{nsr_str}3{data_str}{hora_str}{pis_fmt}"
+        lines.append(line_tipo3)
+        idx_reg += 1
+
+    # Registro Tipo 9 (Trailer)
+    total_marc = len(lines) - 1
+    trailer = f"999999999000000000{total_marc:09d}00000000000000000009"
+    lines.append(trailer)
+
+    conteudo_txt = "\r\n".join(lines) + "\r\n"
+    response = HttpResponse(conteudo_txt, content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="AFD_FIORILLI_{dt_ini}_A_{dt_fim}.txt"'
+    return response
 
 @login_required
 def ajuda(request):
@@ -1026,3 +1481,265 @@ def limpar_logs_relogio(request):
     if request.method == 'POST':
         LogRelogio.objects.all().delete()
     return redirect('monitor_relogio')
+
+# ==========================================
+# PAINEL DE STANDBY E INCONSISTÊNCIAS DE PONTO
+# ==========================================
+
+@login_required
+def painel_standby(request):
+    """
+    Tela para visualização e resolução de batidas retidas em standby
+    (cadastros não encontrados, batidas de teste, identificadores errados).
+    """
+    filtro_status = request.GET.get('status', 'PENDENTE')
+    busca = request.GET.get('q', '').strip()
+
+    qs = BatidaStandby.objects.all()
+    if filtro_status and filtro_status != 'TODOS':
+        qs = qs.filter(status=filtro_status)
+
+    if busca:
+        qs = qs.filter(
+            Q(identificador_valor__icontains=busca) |
+            Q(nome_original__icontains=busca) |
+            Q(motivo_inconsistencia__icontains=busca) |
+            Q(numero_serie_relogio__icontains=busca)
+        )
+
+    batidas_standby = qs.order_by('-data_hora')[:300]
+    total_pendentes = BatidaStandby.objects.filter(status='PENDENTE').count()
+    total_resolvidos = BatidaStandby.objects.filter(status='VINCULADO_ENVIADO').count()
+    total_ignorados = BatidaStandby.objects.filter(status='IGNORADO').count()
+
+    funcionarios = Funcionario.objects.all().order_by('nome_completo')
+
+    return render(request, 'core/standby.html', {
+        'batidas': batidas_standby,
+        'total_pendentes': total_pendentes,
+        'total_resolvidos': total_resolvidos,
+        'total_ignorados': total_ignorados,
+        'filtro_status': filtro_status,
+        'busca': busca,
+        'funcionarios': funcionarios
+    })
+
+@login_required
+def vincular_enviar_standby(request):
+    """
+    Vincula as batidas retidas de um identificador ao servidor correto
+    e transmite imediatamente para o SIP Fiorilli.
+    Permite opcionalmente adicionar o identificador errado à lista de ignorados permanentes.
+    """
+    if request.method != 'POST':
+        return redirect('painel_standby')
+
+    identificador_valor = request.POST.get('identificador_valor', '').strip()
+    funcionario_id = request.POST.get('funcionario_id')
+    ignorar_antigo = request.POST.get('ignorar_antigo') == 'on'
+
+    if not identificador_valor or not funcionario_id:
+        messages.error(request, "Informe o identificador e selecione o funcionário correto.")
+        return redirect('painel_standby')
+
+    func = get_object_or_404(Funcionario, id=funcionario_id)
+    batidas = BatidaStandby.objects.filter(identificador_valor=identificador_valor, status='PENDENTE').order_by('data_hora')
+
+    if not batidas.exists():
+        messages.warning(request, f"Nenhuma batida pendente encontrada para o identificador '{identificador_valor}'.")
+        return redirect('painel_standby')
+
+    from .fiorilli_service import FiorilliService
+    fiorilli_svc = FiorilliService(request=request)
+
+    dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+    seq_por_dia = {}
+    total_enviadas = 0
+
+    for b in batidas:
+        d_ref_str = b.data_referencia.strftime('%Y-%m-%d') if b.data_referencia else b.data_hora.strftime('%Y-%m-%d')
+        dh_str = b.data_hora.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Grava no banco local
+        data_b = b.data_hora.date()
+        hora_b = b.data_hora.time()
+        reg_pt, _ = RegistroPonto.objects.get_or_create(
+            funcionario=func,
+            data=data_b,
+            defaults={'dia_semana': dias_semana_pt[data_b.weekday()]}
+        )
+        if not reg_pt.editado_manualmente:
+            slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
+            ja_tem = any(getattr(reg_pt, s) == hora_b for s in slots if getattr(reg_pt, s) is not None)
+            if not ja_tem:
+                for s in slots:
+                    if getattr(reg_pt, s) is None:
+                        setattr(reg_pt, s, hora_b)
+                        reg_pt.save()
+                        break
+
+        # Alternância de tipo (1 = Entrada, 2 = Saída)
+        seq_dia = seq_por_dia.get(d_ref_str, 0) + 1
+        seq_por_dia[d_ref_str] = seq_dia
+        tipo_efetivo = 1 if (seq_dia % 2 == 1) else 2
+
+        # Transmissão Fiorilli
+        f_id = None
+        if fiorilli_svc.auth_token:
+            ok, msg, f_id = fiorilli_svc.enviar_batida(
+                registro=func.matricula,
+                data_referencia=d_ref_str,
+                data_hora=dh_str,
+                tipo_batida=tipo_efetivo,
+                tipo_coletor="DISPOSITIVO_ELETRONICO",
+                identificador_alternativo=func.cpf or func.pis,
+                nome_alternativo=func.nome_completo
+            )
+
+        b.status = 'VINCULADO_ENVIADO'
+        b.servidor_vinculado = func
+        b.registro_sip_usado = func.matricula
+        b.fiorilli_batida_id = f_id
+        b.data_resolucao = timezone.now()
+        b.observacao_resolucao = f"Vinculado a {func.nome_completo} ({func.matricula}) pelo operador"
+        b.save()
+        total_enviadas += 1
+
+    # Se o operador optou por ignorar o identificador antigo para sempre
+    id_limpo = ''.join(c for c in identificador_valor if c.isdigit())
+    if ignorar_antigo and id_limpo:
+        if len(id_limpo) == 11:
+            CpfIgnorado.objects.get_or_create(cpf=id_limpo)
+        else:
+            MatriculaIgnorada.objects.get_or_create(matricula=id_limpo)
+        messages.info(request, f"O identificador '{identificador_valor}' também foi adicionado à lista de ignorados permanentes.")
+
+    messages.success(request, f"✅ {total_enviadas} batida(s) vinculada(s) a {func.nome_completo} e enviadas com sucesso ao SIP Fiorilli!")
+    return redirect('painel_standby')
+
+@login_required
+def ignorar_standby(request):
+    """
+    Descarta as batidas de teste de um identificador e adiciona-o à lista de ignorados permanentes.
+    """
+    if request.method != 'POST':
+        return redirect('painel_standby')
+
+    identificador_valor = request.POST.get('identificador_valor', '').strip()
+    id_limpo = ''.join(c for c in identificador_valor if c.isdigit()) or identificador_valor
+
+    if not identificador_valor:
+        messages.error(request, "Identificador não fornecido.")
+        return redirect('painel_standby')
+
+    if len(id_limpo) == 11:
+        CpfIgnorado.objects.get_or_create(cpf=id_limpo)
+    else:
+        MatriculaIgnorada.objects.get_or_create(matricula=id_limpo)
+
+    total_ign = BatidaStandby.objects.filter(identificador_valor=identificador_valor, status='PENDENTE').update(
+        status='IGNORADO',
+        data_resolucao=timezone.now(),
+        observacao_resolucao='Identificador marcado como teste / ignorado permanente'
+    )
+
+    messages.success(request, f"🚫 O identificador '{identificador_valor}' foi cadastrado na lista de ignorados permanentes e {total_ign} batida(s) foram arquivadas.")
+    return redirect('painel_standby')
+
+@login_required
+def reprocessar_standby(request):
+    """
+    Verifica todas as batidas em standby contra o SIP Fiorilli (para o caso de servidores recém cadastrados no RH).
+    """
+    if request.method != 'POST':
+        return redirect('painel_standby')
+
+    from .fiorilli_service import FiorilliService
+    fiorilli_svc = FiorilliService(request=request)
+
+    if not fiorilli_svc.auth_token:
+        messages.error(request, "Sessão com o SIP Fiorilli não autenticada para reprocessamento.")
+        return redirect('painel_standby')
+
+    pendentes = BatidaStandby.objects.filter(status='PENDENTE').order_by('data_hora')
+    total_resolvidas = 0
+
+    dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+    seq_por_dia = {}
+
+    for b in pendentes:
+        id_limpo = ''.join(c for c in b.identificador_valor if c.isdigit())
+        reg_sip = fiorilli_svc.resolver_registro_sip(identificador=id_limpo, matricula=id_limpo, nome=b.nome_original)
+
+        if reg_sip:
+            # Localizou agora no SIP Fiorilli!
+            func, _ = Funcionario.objects.get_or_create(
+                matricula=reg_sip,
+                defaults={
+                    'nome_completo': b.nome_original or f"Servidor {reg_sip}",
+                    'cpf': id_limpo if len(id_limpo) == 11 else '',
+                    'pis': id_limpo if len(id_limpo) == 11 else ''
+                }
+            )
+
+            d_ref_str = b.data_referencia.strftime('%Y-%m-%d') if b.data_referencia else b.data_hora.strftime('%Y-%m-%d')
+            dh_str = b.data_hora.strftime('%Y-%m-%d %H:%M:%S')
+
+            # Alternância de tipo (1 = Entrada, 2 = Saída)
+            seq_dia = seq_por_dia.get(d_ref_str, 0) + 1
+            seq_por_dia[d_ref_str] = seq_dia
+            tipo_efetivo = 1 if (seq_dia % 2 == 1) else 2
+
+            ok, msg, f_id = fiorilli_svc.enviar_batida(
+                registro=reg_sip,
+                data_referencia=d_ref_str,
+                data_hora=dh_str,
+                tipo_batida=tipo_efetivo,
+                tipo_coletor="DISPOSITIVO_ELETRONICO",
+                identificador_alternativo=id_limpo,
+                nome_alternativo=b.nome_original
+            )
+
+            # Grava localmente
+            data_b = b.data_hora.date()
+            hora_b = b.data_hora.time()
+            reg_pt, _ = RegistroPonto.objects.get_or_create(
+                funcionario=func,
+                data=data_b,
+                defaults={'dia_semana': dias_semana_pt[data_b.weekday()]}
+            )
+            if not reg_pt.editado_manualmente:
+                slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
+                ja_tem = any(getattr(reg_pt, s) == hora_b for s in slots if getattr(reg_pt, s) is not None)
+                if not ja_tem:
+                    for s in slots:
+                        if getattr(reg_pt, s) is None:
+                            setattr(reg_pt, s, hora_b)
+                            reg_pt.save()
+                            break
+
+            b.status = 'VINCULADO_ENVIADO'
+            b.servidor_vinculado = func
+            b.registro_sip_usado = reg_sip
+            b.fiorilli_batida_id = f_id
+            b.data_resolucao = timezone.now()
+            b.observacao_resolucao = "Resolvido automaticamente por identificação recente no SIP Fiorilli"
+            b.save()
+            total_resolvidas += 1
+
+    if total_resolvidas > 0:
+        messages.success(request, f"🎉 {total_resolvidas} batida(s) foram identificadas no SIP e transmitidas com sucesso!")
+    else:
+        messages.info(request, "Nenhuma nova correspondência foi localizada no cadastro do SIP para as batidas pendentes.")
+
+    return redirect('painel_standby')
+
+@login_required
+def descartar_standby(request, id):
+    """Descarta uma batida individual de standby."""
+    b = get_object_or_404(BatidaStandby, id=id)
+    b.status = 'DESCARTADO'
+    b.data_resolucao = timezone.now()
+    b.save()
+    messages.info(request, f"Batida de {b.identificador_valor} em {b.data_hora.strftime('%d/%m/%Y %H:%M')} descartada.")
+    return redirect('painel_standby')

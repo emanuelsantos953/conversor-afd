@@ -6,6 +6,9 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(template_name='core/login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
     path('', views.home, name='home'),
+    path('processar-envio-batidas/', views.processar_envio_batidas, name='processar_envio_batidas'),
+    path('comprovante-envio-pdf/', views.comprovante_envio_pdf, name='comprovante_envio_pdf'),
+    path('baixar-afd-fiorilli/', views.baixar_afd_fiorilli, name='baixar_afd_fiorilli'),
     path('ajuda/', views.ajuda, name='ajuda'),
     
     # Rota do Gerenciador de Usuários (Acesso exclusivo do Admin)
@@ -28,4 +31,11 @@ urlpatterns = [
     path('verificar-conflitos-grupo/', views.verificar_conflitos_grupo, name='verificar_conflitos_grupo'),
     path('monitor-relogio/', views.monitor_relogio, name='monitor_relogio'),
     path('monitor-relogio/limpar/', views.limpar_logs_relogio, name='limpar_logs_relogio'),
+    
+    # Rotas do Painel de Standby / Inconsistências
+    path('standby/', views.painel_standby, name='painel_standby'),
+    path('standby/vincular/', views.vincular_enviar_standby, name='vincular_enviar_standby'),
+    path('standby/ignorar/', views.ignorar_standby, name='ignorar_standby'),
+    path('standby/reprocessar/', views.reprocessar_standby, name='reprocessar_standby'),
+    path('standby/descartar/<int:id>/', views.descartar_standby, name='descartar_standby'),
 ]

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comprovante de Envio de Batidas - Fiorilli SIP</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', Arial, sans-serif;
+            background-color: #f1f3f5;
+            color: #212529;
+            padding: 30px 15px;
+            font-size: 13px;
+        }
+
+        .document-container {
+            max-width: 860px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 40px 45px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid #dee2e6;
+            position: relative;
+        }
+
+        /* CABEÇALHO OFICIAL */
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #0d1b2a;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #0d1b2a;
+            margin-bottom: 4px;
+        }
+
+        .header h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #415a77;
+            margin-bottom: 6px;
+        }
+
+        .header .subtitle {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .protocol-badge {
+            display: inline-block;
+            background: #e9ecef;
+            color: #495057;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        /* GRID DE INFORMAÇÕES */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: 2px;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: #212529;
+        }
+
+        /* CARDS RESUMO */
+        .stats-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px 14px;
+            text-align: center;
+            background: #ffffff;
+        }
+
+        .stat-card.success {
+            border-color: #a3cfbb;
+            background: #f1f8f5;
+        }
+
+        .stat-num {
+            font-size: 20px;
+            font-weight: 700;
+            color: #198754;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #6c757d;
+            font-weight: 500;
+            margin-top: 2px;
+        }
+
+        /* TABELA DE BATIDAS */
+        .table-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0d1b2a;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            table-layout: auto;
+        }
+
+        th {
+            background-color: #0d1b2a;
+            color: #ffffff;
+            font-weight: 600;
+            text-align: left;
+            padding: 8px 8px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 7px 8px;
+            border-bottom: 1px solid #e9ecef;
+            color: #333;
+            vertical-align: middle;
+        }
+
+        .col-center { text-align: center; }
+        .col-nowrap { white-space: nowrap; }
+        .col-servidor { 
+            white-space: normal;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        tr:nth-child(even) td {
+            background-color: #f8f9fa;
+        }
+
+        .badge-status {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+
+        .badge-existente {
+            background-color: #e2e3e5;
+            color: #41464b;
+        }
+
+        /* ASSINATURA */
+        .signatures {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+            padding-top: 20px;
+        }
+
+        .sig-box {
+            text-align: center;
+            border-top: 1px solid #495057;
+            padding-top: 8px;
+            font-size: 12px;
+        }
+
+        .sig-role {
+            font-size: 11px;
+            color: #6c757d;
+        }
+
+        /* BOTÕES DE AÇÃO FLUTUANTES NA TELA */
+        .actions-bar {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            display: flex;
+            gap: 12px;
+            z-index: 100;
+        }
+
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-print {
+            background: #1a73e8;
+            color: #ffffff;
+        }
+
+        .btn-print:hover {
+            background: #1557b0;
+            transform: translateY(-2px);
+        }
+
+        .btn-back {
+            background: #ffffff;
+            color: #333333;
+            border: 1px solid #ced4da;
+        }
+
+        .btn-back:hover {
+            background: #f8f9fa;
+        }
+
+        /* REGRAS PARA IMPRESSÃO EM PDF */
+        @media print {
+            body {
+                background: #ffffff;
+                padding: 0;
+            }
+
+            .document-container {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+                max-width: 100%;
+            }
+
+            .actions-bar {
+                display: none !important;
+            }
+
+            th {
+                background-color: #212529 !important;
+                color: #ffffff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .info-grid, .stat-card.success, tr:nth-child(even) td {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="actions-bar">
+    <a href="/" class="btn-action btn-back">⬅️ Voltar ao Sistema</a>
+    <button onclick="window.print()" class="btn-action btn-print">🖨️ Salvar como PDF / Imprimir</button>
+</div>
+
+<div class="document-container">
+    <div class="header">
+        <h1>Prefeitura Municipal de Taquarituba</h1>
+        <h2>Departamento de Recursos Humanos • Gestão de Ponto Eletrônico</h2>
+        <div class="subtitle">Comprovante de Transmissão de Batidas ao SIPWebservices Fiorilli</div>
+        <div class="protocol-badge">PROTOCOLO: {{ resumo.envio_id|upper }}</div>
+    </div>
+
+    <div class="info-grid">
+        <div class="info-item">
+            <span class="info-label">Período de Apuração</span>
+            <span class="info-value">📅 {{ resumo.data_inicio_fmt }} até {{ resumo.data_fim_fmt }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Data e Hora da Transmissão</span>
+            <span class="info-value">🕒 {{ resumo.data_envio }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Operador Responsável</span>
+            <span class="info-value">👤 {{ resumo.operador }} (Fiorilli SIP)</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Arquivo de Origem</span>
+            <span class="info-value">📁 {{ resumo.nome_arquivo }}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Entidade Fiorilli</span>
+            <span class="info-value">🏢 Código {{ resumo.entidade|default:'001' }} - PM Taquarituba</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Status da Conexão</span>
+            <span class="info-value">🟢 Integrado via API (POST /batidas)</span>
+        </div>
+    </div>
+
+    <div class="stats-cards">
+        <div class="stat-card success">
+            <div class="stat-num">{{ resumo.total_enviadas_sucesso|default:0 }}</div>
+            <div class="stat-label">Batidas Transmitidas</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num" style="color: #6c757d;">{{ resumo.total_ja_existentes|default:0 }}</div>
+            <div class="stat-label">Já Existentes no SIP</div>
+        </div>
+        {% if resumo.total_standby %}
+        <div class="stat-card" style="border-left: 4px solid #d97706; background: #fffbeb;">
+            <div class="stat-num" style="color: #d97706;">{{ resumo.total_standby }}</div>
+            <div class="stat-label" style="color: #b45309; font-weight: 600;">Retidas em Standby</div>
+        </div>
+        {% endif %}
+        <div class="stat-card">
+            <div class="stat-num" style="color: #0d1b2a;">{{ resumo.total_batidas_periodo|default:0 }}</div>
+            <div class="stat-label">Total no Arquivo</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-num" style="color: #0d6efd;">{{ resumo.total_servidores|default:0 }}</div>
+            <div class="stat-label">Servidores Atendidos</div>
+        </div>
+    </div>
+
+    <!-- SEÇÃO DE INCONSISTÊNCIAS E STANDBY (SE HOUVER) -->
+    {% if resumo.lista_inconsistencias %}
+    <div class="table-section" style="margin-bottom: 28px; border: 1px solid #fde68a; border-radius: 6px; padding: 14px 16px; background: #fffdf5;">
+        <div class="section-title" style="color: #92400e; border-bottom-color: #fde68a;">
+            <span>⚠️ Inconsistências Detectadas & Batidas Retidas em Standby</span>
+            <span style="font-size: 11px; font-weight: 600; color: #b45309;">(NÃO foram transmitidas ao SIP • Para conferência no relógio/RH)</span>
+        </div>
+
+        <table style="margin-top: 8px;">
+            <thead>
+                <tr style="background: #fef3c7;">
+                    <th class="col-center" style="width: 35px; color: #92400e;">#</th>
+                    <th class="col-nowrap" style="width: 90px; color: #92400e;">Data</th>
+                    <th class="col-nowrap" style="width: 75px; color: #92400e;">Hora</th>
+                    <th class="col-nowrap" style="width: 140px; color: #92400e;">Identificador Lido</th>
+                    <th style="color: #92400e;">Nome no Arquivo</th>
+                    <th class="col-nowrap" style="width: 110px; color: #92400e;">Relógio</th>
+                    <th style="color: #92400e;">Motivo da Inconsistência</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inc in resumo.lista_inconsistencias %}
+                <tr>
+                    <td class="col-center" style="color: #b45309; font-weight: 600;">{{ forloop.counter }}</td>
+                    <td class="col-nowrap"><strong>{{ inc.data }}</strong></td>
+                    <td class="col-nowrap">{{ inc.hora }}</td>
+                    <td class="col-nowrap" style="font-family: monospace; font-size: 11px; font-weight: 600; color: #b91c1c;">{{ inc.identificador }}</td>
+                    <td>{{ inc.nome|default:'Não Identificado' }}</td>
+                    <td class="col-nowrap" style="font-size: 11px;">📟 {{ inc.relogio }}</td>
+                    <td style="color: #991b1b; font-size: 11px; font-weight: 500;">{{ inc.motivo }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div style="margin-top: 10px; font-size: 11px; color: #78350f; line-height: 1.4;">
+            ℹ️ <strong>Orientação ao Operador:</strong> As marcações acima foram retidas com segurança na Fila de Standby do sistema. Verifique no relógio de ponto físico se o colaborador está com PIS/CPF digitado incorretamente ou se é um novo admitido que ainda não foi cadastrado no SIP. No menu do sistema, acesse <strong>Standby / Inconsistências</strong> para vincular ao servidor correto ou ignorar caso seja teste.
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="table-section">
+        <div class="section-title">
+            <span>Relação de Batidas Transmitidas com Sucesso</span>
+            <span style="font-size: 11px; font-weight: normal; color: #6c757d;">Marcações vinculadas e registradas na Fiorilli</span>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-center" style="width: 40px;">#</th>
+                    <th class="col-nowrap" style="width: 100px;">Data</th>
+                    <th class="col-nowrap" style="width: 80px;">Hora</th>
+                    <th class="col-nowrap" style="width: 120px;">Matrícula / Reg.</th>
+                    <th class="col-nowrap" style="width: 150px;">Identificador (CPF/PIS)</th>
+                    <th class="col-servidor">Servidor</th>
+                    <th class="col-center col-nowrap" style="width: 110px;">Status no SIP</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in resumo.lista_batidas %}
+                <tr>
+                    <td class="col-center">{{ forloop.counter }}</td>
+                    <td class="col-nowrap"><strong>{{ b.data }}</strong></td>
+                    <td class="col-nowrap">{{ b.hora }}</td>
+                    <td class="col-nowrap">{{ b.registro|default:'-' }}</td>
+                    <td class="col-nowrap" style="font-family: monospace; font-size: 11px;">{{ b.identificador }}</td>
+                    <td class="col-servidor">{{ b.nome|default:'Servidor Localizado' }}</td>
+                    <td class="col-center col-nowrap">
+                        {% if b.status == 'SUCESSO' %}
+                            <span class="badge-status badge-success">✅ Transmitida</span>
+                        {% elif b.status == 'EXISTENTE' %}
+                            <span class="badge-status badge-existente">⚪ Já Existia</span>
+                        {% else %}
+                            <span class="badge-status badge-success">✅ Registrada</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 20px; color: #6c757d;">
+                        Nenhuma batida individual transmitida para listar.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="signatures">
+        <div class="sig-box">
+            <strong>{{ resumo.operador }}</strong>
+            <div class="sig-role">Operador Responsável pelo Lançamento</div>
+        </div>
+        <div class="sig-box">
+            <strong>Setor de Recursos Humanos / Ponto</strong>
+            <div class="sig-role">Prefeitura Municipal de Taquarituba</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Se o usuário clicar para imprimir ou atalho Ctrl+P
+    window.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+            e.preventDefault();
+            window.print();
+        }
+    });
+</script>
+
+</body>
+</html>

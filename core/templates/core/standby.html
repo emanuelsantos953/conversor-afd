@@ -1,0 +1,649 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batidas em Standby & Inconsistências • Conversor AFD</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f4f7fb;
+            color: #1e293b;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* TOPBAR */
+        .topbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 14px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .brand-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 38px;
+            height: 38px;
+            background: #f59e0b;
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .brand-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.2;
+        }
+
+        .brand-sub {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-top {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            color: #475569;
+            cursor: pointer;
+        }
+
+        .btn-top:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #0f172a;
+        }
+
+        .btn-primary {
+            background: #1a73e8;
+            color: #ffffff;
+            border-color: #1a73e8;
+        }
+
+        .btn-primary:hover {
+            background: #1557b0;
+            color: #ffffff;
+        }
+
+        /* CONTAINER */
+        .container {
+            max-width: 1280px;
+            margin: 28px auto;
+            padding: 0 20px;
+            width: 100%;
+            flex: 1;
+        }
+
+        /* MENSAGENS */
+        .alert {
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .alert-success { background: #dcfce7; border: 1px solid #86efac; color: #166534; }
+        .alert-error { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+        .alert-warning { background: #fef3c7; border: 1px solid #fde68a; color: #92400e; }
+        .alert-info { background: #e0f2fe; border: 1px solid #bae6fd; color: #075985; }
+
+        /* CARDS DE RESUMO */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .stat-icon.pending { background: #fef3c7; color: #d97706; }
+        .stat-icon.success { background: #dcfce7; color: #16a34a; }
+        .stat-icon.ignored { background: #fee2e2; color: #dc2626; }
+
+        .stat-val {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.1;
+        }
+
+        .stat-title {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+            margin-top: 2px;
+        }
+
+        /* ÁREA PRINCIPAL */
+        .main-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+
+        .card-toolbar {
+            padding: 16px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            background: #fafafa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
+
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            transition: all 0.2s;
+        }
+
+        .filter-btn.active, .filter-btn:hover {
+            background: #1a73e8;
+            color: #ffffff;
+            border-color: #1a73e8;
+        }
+
+        .search-form {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-input {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            min-width: 240px;
+        }
+
+        .search-input:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.15);
+        }
+
+        /* TABELA */
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            vertical-align: middle;
+        }
+
+        tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-pending { background: #fef3c7; color: #b45309; }
+        .badge-success { background: #dcfce7; color: #15803d; }
+        .badge-ignored { background: #fee2e2; color: #b91c1c; }
+
+        .btn-action-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-act {
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-vincular {
+            background: #1a73e8;
+            color: white;
+        }
+        .btn-vincular:hover { background: #1557b0; }
+
+        .btn-ignorar {
+            background: #f1f5f9;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+        .btn-ignorar:hover { background: #fee2e2; }
+
+        .btn-descartar {
+            background: transparent;
+            color: #94a3b8;
+        }
+        .btn-descartar:hover { color: #dc2626; }
+
+        /* MODAL */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-card {
+            background: #ffffff;
+            border-radius: 12px;
+            max-width: 520px;
+            width: 100%;
+            padding: 24px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .form-select, .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            background: #ffffff;
+        }
+
+        .form-select:focus, .form-input:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.15);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 14px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: #64748b;
+        }
+
+        .empty-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+    <div class="brand-area">
+        <div class="brand-logo">⏳</div>
+        <div>
+            <div class="brand-title">Quarentena & Standby de Batidas</div>
+            <div class="brand-sub">Gerenciamento de Inconsistências de Ponto Eletrônico</div>
+        </div>
+    </div>
+
+    <div class="nav-actions">
+        <form action="{% url 'reprocessar_standby' %}" method="post" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn-top btn-primary" title="Verificar se os servidores pendentes já foram cadastrados no SIP pelo RH">
+                🔄 Reprocessar contra SIP
+            </button>
+        </form>
+        <a href="{% url 'home' %}" class="btn-top">🏠 Home</a>
+        <a href="{% url 'listar_funcionarios' %}" class="btn-top">⚙️ Painel Avançado</a>
+    </div>
+</header>
+
+<div class="container">
+
+    <!-- ALERTAS -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- CARDS DE ESTATÍSTICAS -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon pending">⏳</div>
+            <div>
+                <div class="stat-val">{{ total_pendentes }}</div>
+                <div class="stat-title">Batidas Pendentes em Standby</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon success">✅</div>
+            <div>
+                <div class="stat-val">{{ total_resolvidos }}</div>
+                <div class="stat-title">Vinculadas & Transmitidas</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon ignored">🚫</div>
+            <div>
+                <div class="stat-val">{{ total_ignorados }}</div>
+                <div class="stat-title">Batidas de Teste Ignoradas</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAINEL PRINCIPAL -->
+    <div class="main-card">
+        <div class="card-toolbar">
+            <div class="toolbar-left">
+                <span style="font-size: 13px; font-weight: 600; color: #475569; margin-right: 4px;">Filtro:</span>
+                <a href="?status=PENDENTE" class="filter-btn {% if filtro_status == 'PENDENTE' %}active{% endif %}">Pendentes ({{ total_pendentes }})</a>
+                <a href="?status=VINCULADO_ENVIADO" class="filter-btn {% if filtro_status == 'VINCULADO_ENVIADO' %}active{% endif %}">Resolvidas ({{ total_resolvidos }})</a>
+                <a href="?status=IGNORADO" class="filter-btn {% if filtro_status == 'IGNORADO' %}active{% endif %}">Ignoradas ({{ total_ignorados }})</a>
+                <a href="?status=TODOS" class="filter-btn {% if filtro_status == 'TODOS' %}active{% endif %}">Todas</a>
+            </div>
+
+            <form method="get" class="search-form">
+                <input type="hidden" name="status" value="{{ filtro_status }}">
+                <input type="text" name="q" value="{{ busca }}" class="search-input" placeholder="Buscar por CPF, matrícula, motivo...">
+                <button type="submit" class="btn-top">🔍 Buscar</button>
+                {% if busca %}
+                    <a href="?status={{ filtro_status }}" class="btn-top" title="Limpar busca">✖</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data & Hora</th>
+                        <th>Identificador Lido</th>
+                        <th>Nome no Arquivo</th>
+                        <th>Relógio / Origem</th>
+                        <th>Motivo da Retenção em Standby</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Ações de Resolução</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in batidas %}
+                    <tr>
+                        <td>
+                            <strong>{{ b.data_hora|date:"d/m/Y" }}</strong><br>
+                            <span style="color: #64748b; font-size: 12px;">{{ b.data_hora|date:"H:i:s" }}</span>
+                        </td>
+                        <td>
+                            <strong style="font-family: monospace; font-size: 13px;">{{ b.identificador_valor }}</strong><br>
+                            <span style="font-size: 11px; color: #64748b;">Tipo: {{ b.tipo_identificador }}</span>
+                        </td>
+                        <td>{{ b.nome_original|default:"Não Identificado" }}</td>
+                        <td>
+                            <span style="font-size: 12px; color: #475569;">
+                                📟 {{ b.numero_serie_relogio|default:"Arquivo" }}
+                            </span><br>
+                            <span style="font-size: 11px; color: #94a3b8;">{{ b.origem_arquivo }}</span>
+                        </td>
+                        <td>
+                            <span style="color: #b91c1c; font-weight: 500;">⚠️ {{ b.motivo_inconsistencia }}</span>
+                            {% if b.observacao_resolucao %}
+                                <br><span style="font-size: 11px; color: #166534;">ℹ️ {{ b.observacao_resolucao }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if b.status == 'PENDENTE' %}
+                                <span class="badge badge-pending">⏳ Standby</span>
+                            {% elif b.status == 'VINCULADO_ENVIADO' %}
+                                <span class="badge badge-success">✅ Transmitida</span>
+                            {% elif b.status == 'IGNORADO' %}
+                                <span class="badge badge-ignored">🚫 Ignorada</span>
+                            {% else %}
+                                <span class="badge badge-ignored">🗑️ Descartada</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;">
+                            {% if b.status == 'PENDENTE' %}
+                            <div class="btn-action-group" style="justify-content: flex-end;">
+                                <button type="button" class="btn-act btn-vincular" onclick="abrirModalVincular('{{ b.identificador_valor }}', '{{ b.nome_original|escapejs }}')">
+                                    🔗 Vincular & Enviar
+                                </button>
+
+                                <form action="{% url 'ignorar_standby' %}" method="post" style="display: inline;" onsubmit="return confirm('Deseja marcar este identificador ({{ b.identificador_valor }}) como teste e ignorar permanentemente?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="identificador_valor" value="{{ b.identificador_valor }}">
+                                    <button type="submit" class="btn-act btn-ignorar" title="Marcar como teste do relógio e ignorar para sempre">
+                                        🚫 Ignorar
+                                    </button>
+                                </form>
+
+                                <a href="{% url 'descartar_standby' b.id %}" class="btn-act btn-descartar" title="Descartar esta batida" onclick="return confirm('Deseja descartar esta marcação de ponto?');">
+                                    ✖
+                                </a>
+                            </div>
+                            {% else %}
+                                <span style="font-size: 12px; color: #94a3b8;">Resolvido em {{ b.data_resolucao|date:"d/m/Y H:i" }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <div class="empty-icon">🎉</div>
+                                <h3 style="font-size: 16px; color: #0f172a; margin-bottom: 4px;">Nenhuma batida em standby encontrada!</h3>
+                                <p style="font-size: 13px;">Todos os cadastros foram identificados com sucesso ou já foram resolvidos.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL VINCULAR E TRANSMITIR -->
+<div class="modal-overlay" id="modalVincular">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 class="modal-title">Vincular Servidor & Transmitir ao SIP</h3>
+            <button type="button" onclick="fecharModalVincular()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: #94a3b8;">✖</button>
+        </div>
+
+        <form action="{% url 'vincular_enviar_standby' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="identificador_valor" id="modalIdentificadorInput">
+
+            <div class="form-group">
+                <label class="form-label">Identificador Inconsistente Lido:</label>
+                <input type="text" id="modalIdentificadorDisplay" class="form-input" readonly style="background: #f8fafc; font-weight: 600;">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Selecione o Servidor Correto no Cadastro:</label>
+                <select name="funcionario_id" class="form-select" required>
+                    <option value="">-- Selecione o Servidor Oficial do RH --</option>
+                    {% for f in funcionarios %}
+                        <option value="{{ f.id }}">{{ f.nome_completo }} (Matrícula: {{ f.matricula }}{% if f.cpf %}, CPF: {{ f.cpf }}{% endif %})</option>
+                    {% endfor %}
+                </select>
+                <span style="font-size: 11px; color: #64748b; margin-top: 4px; display: block;">
+                    As batidas retidas serão enviadas para a Fiorilli com a matrícula oficial deste servidor.
+                </span>
+            </div>
+
+            <div class="form-group" style="display: flex; align-items: flex-start; gap: 8px; margin-top: 14px;">
+                <input type="checkbox" name="ignorar_antigo" id="chkIgnorar" checked style="margin-top: 3px;">
+                <label for="chkIgnorar" style="font-size: 13px; color: #334155; cursor: pointer;">
+                    <strong>Ignorar o número errado no relógio para sempre</strong><br>
+                    <span style="font-size: 12px; color: #64748b;">Adiciona o número lido à lista de ignorados permanentes para não gerar novas inconsistências após você corrigir o relógio físico.</span>
+                </label>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-top" onclick="fecharModalVincular()">Cancelar</button>
+                <button type="submit" class="btn-top btn-primary">✅ Vincular & Transmitir ao SIP</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function abrirModalVincular(identificador, nome) {
+        document.getElementById('modalIdentificadorInput').value = identificador;
+        document.getElementById('modalIdentificadorDisplay').value = identificador + (nome ? ' (' + nome + ')' : '');
+        document.getElementById('modalVincular').style.display = 'flex';
+    }
+
+    function fecharModalVincular() {
+        document.getElementById('modalVincular').style.display = 'none';
+    }
+
+    // Fechar modal ao clicar fora
+    window.onclick = function(event) {
+        var modal = document.getElementById('modalVincular');
+        if (event.target == modal) {
+            fecharModalVincular();
+        }
+    }
+</script>
+
+</body>
+</html>

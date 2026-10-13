@@ -81,3 +81,38 @@ class LogRelogio(models.Model):
 
     def __str__(self):
         return f"[{self.tipo}] {self.numero_serie} - {self.data_hora.strftime('%d/%m/%Y %H:%M:%S')}"
+
+
+class BatidaStandby(models.Model):
+    STATUS_CHOICES = [
+        ('PENDENTE', '⏳ Pendente / Standby'),
+        ('VINCULADO_ENVIADO', '✅ Vinculado e Enviado'),
+        ('IGNORADO', '🚫 Ignorado'),
+        ('DESCARTADO', '🗑️ Descartado'),
+    ]
+
+    identificador_valor = models.CharField(max_length=50, db_index=True)
+    tipo_identificador = models.CharField(max_length=20, default='DESCONHECIDO') # CPF, PIS, MATRICULA, DESCONHECIDO
+    nome_original = models.CharField(max_length=255, blank=True, default='')
+    motivo_inconsistencia = models.CharField(max_length=255)
+    data_referencia = models.DateField(null=True, blank=True)
+    data_hora = models.DateTimeField(db_index=True)
+    numero_serie_relogio = models.CharField(max_length=50, blank=True, default='')
+    origem_arquivo = models.CharField(max_length=255, blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDENTE', db_index=True)
+
+    servidor_vinculado = models.ForeignKey(Funcionario, null=True, blank=True, on_delete=models.SET_NULL, related_name='batidas_standby_resolvidas')
+    registro_sip_usado = models.CharField(max_length=20, blank=True, default='')
+    observacao_resolucao = models.TextField(blank=True, default='')
+    fiorilli_batida_id = models.IntegerField(null=True, blank=True)
+
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    data_resolucao = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-data_hora']
+        unique_together = ('identificador_valor', 'data_hora')
+
+    def __str__(self):
+        return f"[{self.status}] {self.identificador_valor} ({self.data_hora.strftime('%d/%m/%Y %H:%M:%S')}) - {self.motivo_inconsistencia}"
+
