@@ -13,7 +13,8 @@ from django.contrib import messages
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from .forms import FuncionarioForm
-from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada, CpfIgnorado, Grupo, LogRelogio, BatidaStandby
+from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada, CpfIgnorado, Grupo, LogRelogio, BatidaStandby, HistoricoEnvio
+from .fiorilli_service import FiorilliService
 from django.db import IntegrityError
 from django.db.models import Q  
 from django.utils import timezone
@@ -25,6 +26,20 @@ logger = logging.getLogger(__name__)
 # ==========================================
 # CONTROLE DE ACESSOS E MENU PRINCIPAL
 # ==========================================
+
+def eh_emanuel_santos(user):
+    """Verifica se o usuário autenticado é estritamente 'emanuel.santos'."""
+    return user.is_authenticated and user.username.strip().lower() == 'emanuel.santos'
+
+def verificar_acesso_avancado(request):
+    """
+    Bloqueia o acesso caso o usuário não seja 'emanuel.santos'.
+    Redireciona para a página inicial com aviso de restrição.
+    """
+    if not eh_emanuel_santos(request.user):
+        messages.error(request, "Acesso restrito: somente o usuário 'emanuel.santos' possui permissão para acessar esta área.")
+        return redirect('home')
+    return None
 
 # Regra de segurança: Só superusuários (como o adminvm) podem acessar
 def is_admin(user):
@@ -115,7 +130,7 @@ def calcular_periodo_mes_anterior():
 @login_required
 def home(request):
     data_inicio_padrao, data_fim_padrao = calcular_periodo_mes_anterior()
-    pode_acessar_conversor = request.user.is_superuser or request.user.groups.filter(name='Conversor').exists()
+    pode_acessar_conversor = eh_emanuel_santos(request.user)
 
     # Formatações amigáveis (ex: 01/07/2026 a 31/07/2026)
     dt_ini_obj = datetime.strptime(data_inicio_padrao, '%Y-%m-%d').date()
@@ -373,6 +388,7 @@ def processar_envio_batidas(request):
         servidores_set.add(func.id)
 
         # Grava no banco local (RegistroPonto) com ordenação das batidas
+        ja_existia_no_ponto = False
         if dt_obj:
             try:
                 data_b = dt_obj.date()
@@ -382,15 +398,17 @@ def processar_envio_batidas(request):
                     data=data_b,
                     defaults={'dia_semana': dias_semana_pt[data_b.weekday()]}
                 )
-                if not reg_pt.editado_manualmente:
-                    slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
-                    ja_tem = any(getattr(reg_pt, s) == hora_b for s in slots if getattr(reg_pt, s) is not None)
-                    if not ja_tem:
-                        for s in slots:
-                            if getattr(reg_pt, s) is None:
-                                setattr(reg_pt, s, hora_b)
-                                reg_pt.save()
-                                break
+                slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
+                # Verifica se a batida com este mesmo horário já está gravada nos slots deste dia
+                ja_tem = any(getattr(reg_pt, s) == hora_b for s in slots if getattr(reg_pt, s) is not None)
+                if ja_tem:
+                    ja_existia_no_ponto = True
+                elif not reg_pt.editado_manualmente:
+                    for s in slots:
+                        if getattr(reg_pt, s) is None:
+                            setattr(reg_pt, s, hora_b)
+                            reg_pt.save()
+                            break
             except Exception as e:
                 logger.error(f"Erro ao gravar RegistroPonto para {func.nome_completo}: {e}")
 
@@ -406,7 +424,13 @@ def processar_envio_batidas(request):
         # 6. Transmissão para a API Fiorilli
         status_envio = "SUCESSO"
         registro_envio = reg or ident_limpo
-        if fiorilli_svc.auth_token and dh:
+
+        if ja_existia_no_ponto:
+            # Batida já constava previamente no lançamento/espelho deste servidor: não reenvia
+            total_ja_existentes += 1
+            status_envio = "EXISTENTE"
+            logger.info(f"[Fiorilli Envio] Batida {dh} de {nome or ident_limpo} já constava no lançamento local. Envio ao SIP pulado.")
+        elif fiorilli_svc.auth_token and dh:
             ok, msg, f_id = fiorilli_svc.enviar_batida(
                 registro=registro_envio,
                 data_referencia=d_ref or str(dh).split()[0],
@@ -465,6 +489,28 @@ def processar_envio_batidas(request):
     }
     request.session['ultimo_envio_ponto'] = resumo_dados
 
+    # Persiste no banco de dados para o Histórico de Lançamentos
+    try:
+        HistoricoEnvio.objects.create(
+            envio_id=envio_id,
+            usuario=request.user if request.user.is_authenticated else None,
+            username_responsavel=request.user.username,
+            entidade=request.session.get('fiorilli_entidade', '001'),
+            nome_arquivo=arquivo.name,
+            tipo_arquivo=tipo_arq,
+            data_inicio=dt_ini_obj.date() if dt_ini_obj else None,
+            data_fim=dt_fim_obj.date() if dt_fim_obj else None,
+            total_batidas_periodo=total_processadas,
+            total_enviadas_sucesso=total_enviadas,
+            total_ja_existentes=total_ja_existentes,
+            total_standby=total_standby,
+            total_ignorados=total_ignorados,
+            total_servidores=len(servidores_set),
+            dados_resumo_json=json.dumps(resumo_dados, default=str)
+        )
+    except Exception as e:
+        logger.error(f"Erro ao salvar HistoricoEnvio: {e}")
+
     return JsonResponse({
         'sucesso': True,
         'resumo': resumo_dados
@@ -477,6 +523,85 @@ def comprovante_envio_pdf(request):
     if not resumo:
         messages.warning(request, "Nenhum envio recente localizado para gerar o comprovante.")
         return redirect('home')
+    return render(request, 'core/comprovante_pdf.html', {'resumo': resumo})
+
+@login_required
+def historico_lancamentos(request):
+    """
+    Exibe o histórico de todos os lotes de batidas lançados através da plataforma.
+    Permite filtrar por operador que realizou o envio e buscar por arquivo/protocolo.
+    Acesso restrito ao usuário 'emanuel.santos'.
+    """
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
+    filtro_operador = request.GET.get('operador', '').strip()
+    busca = request.GET.get('q', '').strip()
+
+    qs = HistoricoEnvio.objects.all()
+
+    if filtro_operador:
+        qs = qs.filter(username_responsavel=filtro_operador)
+
+    if busca:
+        qs = qs.filter(
+            Q(envio_id__icontains=busca) |
+            Q(nome_arquivo__icontains=busca) |
+            Q(username_responsavel__icontains=busca)
+        )
+
+    lotes = qs.order_by('-data_envio')[:250]
+    total_lotes = HistoricoEnvio.objects.count()
+    total_transmitidas = sum(h.total_enviadas_sucesso for h in HistoricoEnvio.objects.all())
+    total_standby_geral = sum(h.total_standby for h in HistoricoEnvio.objects.all())
+
+    # Lista de todos os operadores que já fizeram lançamentos
+    operadores = HistoricoEnvio.objects.values_list('username_responsavel', flat=True).distinct().order_by('username_responsavel')
+
+    return render(request, 'core/historico.html', {
+        'lotes': lotes,
+        'total_lotes': total_lotes,
+        'total_transmitidas': total_transmitidas,
+        'total_standby_geral': total_standby_geral,
+        'operadores': operadores,
+        'filtro_operador': filtro_operador,
+        'busca': busca,
+    })
+
+@login_required
+def reemitir_comprovante_pdf(request, envio_id):
+    """
+    Reemite o comprovante PDF oficial de um lote gravado no histórico.
+    Acesso restrito a 'emanuel.santos'.
+    """
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
+    lote = get_object_or_404(HistoricoEnvio, envio_id=envio_id)
+    try:
+        resumo = json.loads(lote.dados_resumo_json)
+    except Exception:
+        resumo = {
+            'envio_id': lote.envio_id,
+            'data_envio': lote.data_envio.strftime('%d/%m/%Y às %H:%M:%S'),
+            'operador': lote.username_responsavel,
+            'entidade': lote.entidade,
+            'nome_arquivo': lote.nome_arquivo,
+            'data_inicio_fmt': lote.data_inicio.strftime('%d/%m/%Y') if lote.data_inicio else '',
+            'data_fim_fmt': lote.data_fim.strftime('%d/%m/%Y') if lote.data_fim else '',
+            'total_batidas_periodo': lote.total_batidas_periodo,
+            'total_enviadas_sucesso': lote.total_enviadas_sucesso,
+            'total_ja_existentes': lote.total_ja_existentes,
+            'total_standby': lote.total_standby,
+            'total_ignorados': lote.total_ignorados,
+            'total_servidores': lote.total_servidores,
+            'tipo_arquivo': lote.tipo_arquivo,
+            'lista_batidas': [],
+            'lista_inconsistencias': []
+        }
+
     return render(request, 'core/comprovante_pdf.html', {'resumo': resumo})
 
 @login_required
@@ -568,6 +693,10 @@ def ajuda(request):
 
 @login_required
 def cadastrar_funcionario(request):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method == 'POST':
         form = FuncionarioForm(request.POST)
         if form.is_valid():
@@ -582,6 +711,10 @@ def cadastrar_funcionario(request):
 
 @login_required
 def listar_funcionarios(request):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if 'q' in request.GET or 'grupo' in request.GET:
         query = request.GET.get('q', '').strip()
         grupo = request.GET.get('grupo', '').strip()
@@ -615,8 +748,24 @@ def listar_funcionarios(request):
         return JsonResponse({'funcionarios': dados})
 
     grupos_existentes = Grupo.objects.all().values_list('nome', flat=True)
+    total_funcionarios = Funcionario.objects.count()
+    total_grupos = Grupo.objects.count()
+    total_standby = BatidaStandby.objects.filter(status='PENDENTE').count()
+    total_historico = HistoricoEnvio.objects.count()
+    total_ignorados = PisIgnorado.objects.count() + MatriculaIgnorada.objects.count() + CpfIgnorado.objects.count()
     
-    return render(request, 'core/listar.html', {'grupos': grupos_existentes})
+    # Carrega os primeiros 20 servidores para a tabela já abrir populada
+    funcionarios_iniciais = Funcionario.objects.all().prefetch_related('grupos').order_by('nome_completo')[:20]
+
+    return render(request, 'core/listar.html', {
+        'grupos': grupos_existentes,
+        'total_funcionarios': total_funcionarios,
+        'total_grupos': total_grupos,
+        'total_standby': total_standby,
+        'total_historico': total_historico,
+        'total_ignorados': total_ignorados,
+        'funcionarios_iniciais': funcionarios_iniciais,
+    })
 
 @login_required
 def atualizar_funcionario(request):
@@ -746,6 +895,10 @@ def eh_batida_duplicada(nova_hora, batidas_existentes, tolerancia_segundos=120):
 
 @login_required
 def importar_afd(request):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
         grupo_nome = request.POST.get('grupo_ponto')
@@ -896,6 +1049,10 @@ def ignorar_pis(request):
 
 @login_required
 def exportar_afd(request):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method == 'POST':
         data_inicio = request.POST.get('data_inicio')
         data_fim = request.POST.get('data_fim')
@@ -964,6 +1121,10 @@ def exportar_afd(request):
 
 @login_required
 def importar_funcionarios(request):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
         
@@ -992,6 +1153,142 @@ def importar_funcionarios(request):
             return redirect('listar_funcionarios')
 
     return render(request, 'core/importar.html')
+
+@login_required
+def sincronizar_servidores_fiorilli(request):
+    """
+    Sincroniza os servidores ativos diretamente da API do SIP Fiorilli.
+    Confere a lista completa de trabalhadores ativos da entidade com a base local
+    e importa automaticamente quaisquer servidores faltantes ou atualiza dados vazios.
+    """
+    if not eh_emanuel_santos(request.user):
+        return JsonResponse({
+            'sucesso': False,
+            'erro': 'Acesso restrito: somente o usuário emanuel.santos possui permissão para sincronizar servidores.'
+        }, status=403)
+
+    fiorilli_svc = FiorilliService.from_request(request)
+    if not fiorilli_svc.auth_token:
+        return JsonResponse({
+            'sucesso': False,
+            'erro': 'Sessão com o SIP Fiorilli não autenticada. Por favor, encerre a sessão (Sair) e faça login novamente para revalidar seu token da Fiorilli.'
+        }, status=401)
+
+    start = 0
+    max_page = 200
+    trabalhadores_sip = []
+
+    try:
+        while True:
+            ok, itens, msg = fiorilli_svc.consultar_trabalhadores_ativos(max_registros=max_page, start=start)
+            if not ok:
+                if not trabalhadores_sip:
+                    return JsonResponse({
+                        'sucesso': False,
+                        'erro': f'Falha ao comunicar com a API do SIP Fiorilli: {msg}'
+                    }, status=502)
+                break
+            if not itens:
+                break
+            trabalhadores_sip.extend(itens)
+            if len(itens) < max_page:
+                break
+            start += max_page
+    except Exception as e:
+        logger.error(f"[Sincronizar Servidores] Erro ao consultar trabalhadores na Fiorilli: {e}")
+        return JsonResponse({
+            'sucesso': False,
+            'erro': f'Erro durante a consulta à API Fiorilli: {str(e)}'
+        }, status=500)
+
+    # Carrega dados atuais do banco local para evitar dezenas de queries repetidas
+    funcionarios_existentes = list(Funcionario.objects.all())
+    mapa_matr = {f.matricula.strip(): f for f in funcionarios_existentes if f.matricula}
+    mapa_cpf = {f.cpf.strip(): f for f in funcionarios_existentes if f.cpf}
+    mapa_pis = {f.pis.strip(): f for f in funcionarios_existentes if f.pis}
+
+    total_sip = len(trabalhadores_sip)
+    total_ja_cadastrados = 0
+    total_importados = 0
+    total_atualizados = 0
+    novos_importados = []
+
+    for t in trabalhadores_sip:
+        reg = str(t.get("registro", "")).strip().zfill(6)
+        if not reg or reg == "000000":
+            continue
+
+        cpf = ''.join(c for c in str(t.get("cpf", "")) if c.isdigit())
+        pis = ''.join(c for c in str(t.get("pis", "")) if c.isdigit())
+        matr = ''.join(c for c in str(t.get("matricula", "")) if c.isdigit())
+        nome = str(t.get("nome", "")).strip().upper()
+
+        # Tenta localizar por registro/matrícula, CPF ou PIS
+        func = (
+            mapa_matr.get(reg) or
+            (mapa_matr.get(matr) if matr else None) or
+            (mapa_cpf.get(cpf) if cpf else None) or
+            (mapa_pis.get(pis) if pis else None)
+        )
+
+        if not func:
+            # Servidor faltante -> Importa para a base
+            matricula_salvar = reg if reg else (matr if matr else cpf)
+
+            # Evita duplicidades de chaves únicas no banco
+            cpf_salvar = cpf if (cpf and cpf not in mapa_cpf) else ''
+            pis_salvar = pis if (pis and pis not in mapa_pis) else ''
+
+            try:
+                novo = Funcionario.objects.create(
+                    matricula=matricula_salvar,
+                    nome_completo=nome or f"Servidor {matricula_salvar}",
+                    cpf=cpf_salvar,
+                    pis=pis_salvar
+                )
+                mapa_matr[matricula_salvar] = novo
+                if cpf_salvar:
+                    mapa_cpf[cpf_salvar] = novo
+                if pis_salvar:
+                    mapa_pis[pis_salvar] = novo
+                total_importados += 1
+                if len(novos_importados) < 15:
+                    novos_importados.append({
+                        'matricula': matricula_salvar,
+                        'nome': nome or f"Servidor {matricula_salvar}",
+                        'cpf': cpf_salvar or '-'
+                    })
+            except Exception as e:
+                logger.warning(f"[Sincronizar Servidores] Erro ao salvar novo servidor {matricula_salvar}: {e}")
+        else:
+            # Servidor já cadastrado -> atualiza dados faltantes se houver
+            alterou = False
+            if not func.cpf and cpf and cpf not in mapa_cpf:
+                func.cpf = cpf
+                mapa_cpf[cpf] = func
+                alterou = True
+            if not func.pis and pis and pis not in mapa_pis:
+                func.pis = pis
+                mapa_pis[pis] = func
+                alterou = True
+            if nome and (func.nome_completo.startswith("Servidor ") or len(func.nome_completo) < 3):
+                func.nome_completo = nome
+                alterou = True
+            if alterou:
+                func.save()
+                total_atualizados += 1
+            total_ja_cadastrados += 1
+
+    return JsonResponse({
+        'sucesso': True,
+        'total_sip': total_sip,
+        'total_ja_cadastrados': total_ja_cadastrados,
+        'total_importados': total_importados,
+        'total_atualizados': total_atualizados,
+        'total_banco_final': Funcionario.objects.count(),
+        'novos_importados': novos_importados
+    })
+
 
 def normalizar_texto(texto):
     if not texto: return ""
@@ -1146,6 +1443,10 @@ def parse_data_hora(texto):
 
 @login_required
 def importar_planilha(request):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
         grupo_nome = request.POST.get('grupo_ponto')
@@ -1337,6 +1638,10 @@ def ignorar_matricula(request):
 
 @login_required
 def cadastro_ignorados(request):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method == 'POST':
         tipo = request.POST.get('tipo')
         valor = request.POST.get('valor', '').strip()
@@ -1363,6 +1668,10 @@ def cadastro_ignorados(request):
 
 @login_required
 def gerenciar_grupos(request):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method == 'POST':
         acao = request.POST.get('acao')
         grupo_id = request.POST.get('grupo_id')
@@ -1398,6 +1707,10 @@ def gerenciar_grupos(request):
 
 @login_required
 def remover_ignorado(request, tipo, id):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if tipo == 'matricula':
         MatriculaIgnorada.objects.filter(id=id).delete()
     elif tipo == 'pis':
@@ -1408,6 +1721,10 @@ def remover_ignorado(request, tipo, id):
 
 @login_required
 def verificar_conflitos_grupo(request):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method == 'POST':
         arquivo = request.FILES.get('arquivo')
         if not arquivo:
@@ -1462,6 +1779,10 @@ def verificar_conflitos_grupo(request):
 
 @login_required
 def monitor_relogio(request):
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.GET.get('format') == 'json':
         logs = LogRelogio.objects.all()[:100]
         dados = [{
@@ -1492,6 +1813,10 @@ def painel_standby(request):
     Tela para visualização e resolução de batidas retidas em standby
     (cadastros não encontrados, batidas de teste, identificadores errados).
     """
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     filtro_status = request.GET.get('status', 'PENDENTE')
     busca = request.GET.get('q', '').strip()
 
@@ -1531,6 +1856,10 @@ def vincular_enviar_standby(request):
     e transmite imediatamente para o SIP Fiorilli.
     Permite opcionalmente adicionar o identificador errado à lista de ignorados permanentes.
     """
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method != 'POST':
         return redirect('painel_standby')
 
@@ -1622,6 +1951,10 @@ def ignorar_standby(request):
     """
     Descarta as batidas de teste de um identificador e adiciona-o à lista de ignorados permanentes.
     """
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method != 'POST':
         return redirect('painel_standby')
 
@@ -1651,6 +1984,10 @@ def reprocessar_standby(request):
     """
     Verifica todas as batidas em standby contra o SIP Fiorilli (para o caso de servidores recém cadastrados no RH).
     """
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     if request.method != 'POST':
         return redirect('painel_standby')
 
@@ -1737,6 +2074,10 @@ def reprocessar_standby(request):
 @login_required
 def descartar_standby(request, id):
     """Descarta uma batida individual de standby."""
+    bloqueio = verificar_acesso_avancado(request)
+    if bloqueio:
+        return bloqueio
+
     b = get_object_or_404(BatidaStandby, id=id)
     b.status = 'DESCARTADO'
     b.data_resolucao = timezone.now()

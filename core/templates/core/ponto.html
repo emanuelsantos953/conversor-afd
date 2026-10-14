@@ -3,101 +3,749 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Espelho de Ponto</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Espelho de Ponto • {{ funcionario.nome_completo }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        .container { max-width: 1000px; margin: 20px auto; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; }
-        th, td { border: 1px solid #ccc; padding: 5px; text-align: center; font-size: 14px; }
-        th { background-color: #e0e0e0; }
-        
-        input[type="time"] { border: 1px solid transparent; width: 100%; padding: 4px; text-align: center; background: transparent; cursor: pointer; }
-        input[type="time"]:focus { border: 1px solid #ff8c00; background-color: #ffb74d; outline: none; }
-        
-        .fim-de-semana { background-color: #fcf8e3; }
-        .domingo { color: red; font-weight: bold; }
-        
-        .filtros { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; background: #fff; padding: 15px; border-radius: 4px; border: 1px solid #ddd; }
-        .filtros select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
-        
-        /* Estilo do botão de salvar */
-        .btn-salvar { background: none; border: none; cursor: pointer; font-size: 18px; transition: transform 0.2s; }
-        .btn-salvar:hover { transform: scale(1.2); }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f4f7fb;
+            color: #1e293b;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* TOPBAR */
+        .topbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 14px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 38px;
+            height: 38px;
+            background: #1a73e8;
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(26, 115, 232, 0.25);
+        }
+
+        .brand-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.2;
+        }
+
+        .brand-sub {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .user-area {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .fiorilli-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #eefcf3;
+            color: #166534;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #bbf7d0;
+        }
+
+        .badge-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .user-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            background: #f1f5f9;
+            padding: 6px 14px;
+            border-radius: 20px;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-link {
+            padding: 7px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-link:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+            color: #0f172a;
+        }
+
+        .btn-logout {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            padding: 7px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: #fee2e2;
+            color: #dc2626;
+            border-color: #fca5a5;
+        }
+
+        /* CONTAINER PRINCIPAL */
+        .main-container {
+            flex: 1;
+            max-width: 1280px;
+            width: 100%;
+            margin: 28px auto;
+            padding: 0 20px;
+        }
+
+        /* HEADER SECTION */
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .page-desc {
+            font-size: 14px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .btn-voltar-topo {
+            background: #ffffff;
+            color: #475569;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 9px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #cbd5e1;
+            transition: all 0.2s;
+        }
+
+        .btn-voltar-topo:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+            color: #0f172a;
+        }
+
+        /* CARD GERAL */
+        .card-box {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 22px 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+
+        .card-box-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .card-box-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* GRID CADASTRO FUNCIONÁRIO */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .form-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-field label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .form-input {
+            width: 100%;
+            height: 40px;
+            padding: 0 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #1e293b;
+            background: #ffffff;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.12);
+        }
+
+        .btn-salvar-cad {
+            background: #16a34a;
+            color: #ffffff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);
+            font-family: inherit;
+        }
+
+        .btn-salvar-cad:hover {
+            background: #15803d;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(22, 163, 74, 0.25);
+        }
+
+        /* FILTROS E MÉTRICAS DO MÊS */
+        .periodo-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .filtro-form {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .select-periodo {
+            height: 40px;
+            padding: 0 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #1e293b;
+            background: #ffffff;
+            outline: none;
+            transition: border-color 0.2s;
+            cursor: pointer;
+        }
+
+        .select-periodo:focus {
+            border-color: #1a73e8;
+        }
+
+        .btn-filtrar {
+            background: #1a73e8;
+            color: #ffffff;
+            border: none;
+            padding: 0 18px;
+            height: 40px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-filtrar:hover {
+            background: #1557b0;
+        }
+
+        /* BADGES RESUMO DO MÊS */
+        .mes-metricas {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .metric-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #475569;
+            font-weight: 500;
+        }
+
+        .metric-pill strong {
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        /* TABELA DE ESPELHO DE PONTO */
+        .table-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            margin-bottom: 24px;
+        }
+
+        .table-header-info {
+            padding: 14px 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            padding: 12px 14px;
+            text-align: center;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        th.col-data {
+            text-align: left;
+            width: 140px;
+            padding-left: 18px;
+        }
+
+        th.col-dia {
+            width: 80px;
+        }
+
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        td.col-data-val {
+            text-align: left;
+            padding-left: 18px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        /* LINHAS DE FIM DE SEMANA */
+        tr.fim-de-semana td {
+            background-color: #fafbfc;
+        }
+
+        tr.fim-de-semana:hover td {
+            background-color: #f1f5f9;
+        }
+
+        /* BADGES DE DIA */
+        .badge-dia {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-dia-util {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .badge-dia-sab {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .badge-dia-dom {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        /* CAMPOS DE HORA */
+        input[type="time"] {
+            width: 100%;
+            max-width: 105px;
+            height: 36px;
+            padding: 0 6px;
+            text-align: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #ffffff;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            color: #0f172a;
+            outline: none;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        input[type="time"]:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.15);
+            background: #ffffff;
+        }
+
+        input[type="time"]:hover {
+            border-color: #94a3b8;
+        }
+
+        /* BOTÃO SALVAR LINHA */
+        .btn-salvar-linha {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            color: #475569;
+            font-size: 15px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .btn-salvar-linha:hover {
+            background: #1a73e8;
+            color: #ffffff;
+            border-color: #1a73e8;
+            transform: scale(1.05);
+            box-shadow: 0 2px 4px rgba(26, 115, 232, 0.2);
+        }
+
+        .badge-editado {
+            display: inline-flex;
+            align-items: center;
+            font-size: 11px;
+            color: #b45309;
+            background: #fef3c7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            font-weight: 500;
+        }
+
+        /* TOAST NOTIFICAÇÃO FLUTUANTE */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            min-width: 280px;
+            padding: 14px 18px;
+            background: #ffffff;
+            color: #1e293b;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+            border-left: 4px solid #1a73e8;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideInToast 0.3s ease-out;
+            pointer-events: auto;
+        }
+
+        .toast-success { border-left-color: #16a34a; }
+        .toast-error { border-left-color: #dc2626; }
+
+        @keyframes slideInToast {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2 style="color: #417690; margin-bottom: 15px;">Perfil do Funcionário</h2>
-        
-        <div style="margin-bottom: 25px; background-color: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
-                <div style="display: flex; flex-direction: column; gap: 5px;">
-                    <label for="nome_input" style="font-weight: bold; color: #555;">Nome Completo:</label>
-                    <input type="text" id="nome_input" value="{{ funcionario.nome_completo }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 5px;">
-                    <label for="matricula_input" style="font-weight: bold; color: #555;">Matrícula:</label>
-                    <input type="text" id="matricula_input" value="{{ funcionario.matricula }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 5px;">
-                    <label for="pis_input" style="font-weight: bold; color: #555;">PIS:</label>
-                    <input type="text" id="pis_input" value="{{ funcionario.pis }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 5px;">
-                    <label for="cpf_input" style="font-weight: bold; color: #555;">CPF:</label>
-                    <input type="text" id="cpf_input" value="{{ funcionario.cpf }}" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 5px;">
-                    <label for="grupo_ponto_input" style="font-weight: bold; color: #555;">Grupos (Separe por vírgula):</label>
-                    <input type="text" id="grupo_ponto_input" value="{% for g in funcionario.grupos.all %}{{ g.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}" placeholder="Ex: Operacional, Noite..." style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                </div>
+
+<!-- TOPBAR -->
+<header class="topbar">
+    <div class="brand-area">
+        <div class="brand-logo">⏱️</div>
+        <div>
+            <div class="brand-title">Espelho de Ponto Individual</div>
+            <div class="brand-sub">Conversor AFD • Prefeitura Municipal de Taquarituba</div>
+        </div>
+    </div>
+
+    <div class="user-area">
+        <div class="fiorilli-badge">
+            <span class="badge-dot"></span> Fiorilli SIP Ativo
+        </div>
+        <span class="user-name">👤 {{ request.user.username }}</span>
+        <div class="nav-links">
+            <a href="{% url 'listar_funcionarios' %}" class="btn-link">⬅️ Voltar aos Servidores</a>
+            <a href="{% url 'painel_standby' %}" class="btn-link">⏳ Standby</a>
+            <a href="{% url 'historico_lancamentos' %}" class="btn-link">📜 Histórico</a>
+            <a href="{% url 'home' %}" class="btn-link">🏠 Início</a>
+            <form action="{% url 'logout' %}" method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-logout">Sair</button>
+            </form>
+        </div>
+    </div>
+</header>
+
+<main class="main-container">
+
+    <!-- CABEÇALHO DA PÁGINA -->
+    <div class="header-section">
+        <div>
+            <h1 class="page-title">
+                <span>{{ funcionario.nome_completo }}</span>
+                <span style="font-size: 13px; font-weight: 600; background: #eff6ff; color: #1d4ed8; padding: 4px 10px; border-radius: 6px; border: 1px solid #dbeafe;">Matrícula: {{ funcionario.matricula }}</span>
+            </h1>
+            <p class="page-desc">
+                Consulta e edição das marcações diárias do espelho de ponto para o período de <strong>{{ mes_selecionado|stringformat:"02d" }}/{{ ano_selecionado }}</strong>.
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'listar_funcionarios' %}" class="btn-voltar-topo">
+                ⬅️ Voltar à Lista
+            </a>
+        </div>
+    </div>
+
+    <!-- CARD 1: DADOS CADASTRAIS DO SERVIDOR -->
+    <div class="card-box">
+        <div class="card-box-header">
+            <div class="card-box-title">
+                <span>👤 Dados Cadastrais & Vinculação Departamental</span>
             </div>
-            <div style="text-align: right;">
-                <button onclick="atualizarFuncionario()" id="btn_atualizar_funcionario" class="btn btn-primary" style="margin: 0; padding: 10px 20px; width: auto; background-color: #28a745; border-color: #28a745; font-weight: bold;">
-                    💾 Salvar Alterações Cadastrais
-                </button>
+            <div style="font-size: 12px; color: #64748b;">
+                ID Interno: #{{ funcionario.id }}
             </div>
         </div>
 
         <input type="hidden" id="funcionario_id" value="{{ funcionario.id }}">
         {% csrf_token %}
 
-        <form method="GET" class="filtros">
-            <label for="mes"><strong>Mês:</strong></label>
-            <select name="mes" id="mes">
-                {% for m in meses %}
-                    <option value="{{ m }}" {% if m == mes_selecionado %}selected{% endif %}>{{ m|stringformat:"02d" }}</option>
-                {% endfor %}
-            </select>
-            <label for="ano"><strong>Ano:</strong></label>
-            <select name="ano" id="ano">
-                {% for a in anos %}
-                    <option value="{{ a }}" {% if a == ano_selecionado %}selected{% endif %}>{{ a }}</option>
-                {% endfor %}
-            </select>
-            <button type="submit" class="btn btn-primary" style="margin-bottom: 0; width: auto;">Atualizar Tabela</button>
-            <a href="{% url 'listar_funcionarios' %}" class="btn btn-secondary" style="margin-bottom: 0; margin-top: 0; width: auto; margin-left: auto;">Voltar</a>
-        </form>
+        <div class="form-grid">
+            <div class="form-field">
+                <label for="nome_input">Nome Completo</label>
+                <input type="text" id="nome_input" class="form-input" value="{{ funcionario.nome_completo }}">
+            </div>
+            <div class="form-field">
+                <label for="matricula_input">Matrícula (Registro)</label>
+                <input type="text" id="matricula_input" class="form-input" value="{{ funcionario.matricula }}">
+            </div>
+            <div class="form-field">
+                <label for="cpf_input">CPF</label>
+                <input type="text" id="cpf_input" class="form-input" value="{{ funcionario.cpf }}">
+            </div>
+            <div class="form-field">
+                <label for="pis_input">PIS</label>
+                <input type="text" id="pis_input" class="form-input" value="{{ funcionario.pis }}">
+            </div>
+            <div class="form-field">
+                <label for="grupo_ponto_input">Grupos Departamentais</label>
+                <input type="text" id="grupo_ponto_input" class="form-input" value="{% for g in funcionario.grupos.all %}{{ g.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}" placeholder="Ex: Operacional, Noite, Saúde...">
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end;">
+            <button type="button" onclick="atualizarFuncionario()" id="btn_atualizar_funcionario" class="btn-salvar-cad">
+                💾 Salvar Alterações Cadastrais
+            </button>
+        </div>
+    </div>
+
+    <!-- CARD 2: FILTRO DE PERÍODO & CONTADORES -->
+    <div class="card-box" style="padding: 16px 24px;">
+        <div class="periodo-bar">
+            <form method="GET" class="filtro-form">
+                <label for="mes" style="font-size: 13px; font-weight: 600; color: #475569;">Mês:</label>
+                <select name="mes" id="mes" class="select-periodo">
+                    {% for m in meses %}
+                        <option value="{{ m }}" {% if m == mes_selecionado %}selected{% endif %}>{{ m|stringformat:"02d" }} - {% if m == 1 %}Janeiro{% elif m == 2 %}Fevereiro{% elif m == 3 %}Março{% elif m == 4 %}Abril{% elif m == 5 %}Maio{% elif m == 6 %}Junho{% elif m == 7 %}Julho{% elif m == 8 %}Agosto{% elif m == 9 %}Setembro{% elif m == 10 %}Outubro{% elif m == 11 %}Novembro{% elif m == 12 %}Dezembro{% endif %}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="ano" style="font-size: 13px; font-weight: 600; color: #475569; margin-left: 6px;">Ano:</label>
+                <select name="ano" id="ano" class="select-periodo">
+                    {% for a in anos %}
+                        <option value="{{ a }}" {% if a == ano_selecionado %}selected{% endif %}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit" class="btn-filtrar">
+                    🔍 Filtrar Período
+                </button>
+            </form>
+
+            <div class="mes-metricas">
+                <span class="metric-pill">📅 Dias no mês: <strong>{{ dias_do_mes|length }}</strong></span>
+                <span class="metric-pill">🏢 Competência: <strong>{{ mes_selecionado|stringformat:"02d" }}/{{ ano_selecionado }}</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- CARD 3: TABELA DO ESPELHO DE PONTO -->
+    <div class="table-card">
+        <div class="table-header-info">
+            <span>📅 Batidas Diárias de Ponto • {{ mes_selecionado|stringformat:"02d" }}/{{ ano_selecionado }}</span>
+            <span style="font-size: 12px; font-weight: normal; color: #94a3b8;">
+                Preencha os horários desejados e clique no botão 💾 para registrar a alteração do dia.
+            </span>
+        </div>
 
         <table>
             <thead>
                 <tr>
-                    <th>Data</th>
-                    <th>Dia</th>
+                    <th class="col-data">Data</th>
+                    <th class="col-dia">Dia</th>
                     <th>Entrada 1</th>
                     <th>Saída 1</th>
                     <th>Entrada 2</th>
                     <th>Saída 2</th>
                     <th>Entrada 3</th>
                     <th>Saída 3</th>
-                    <th>Ação</th>
+                    <th style="width: 80px;">Salvar</th>
                 </tr>
             </thead>
             <tbody>
                 {% for dia in dias_do_mes %}
                 <tr data-data="{{ dia.data_iso }}" data-diasemana="{{ dia.dia_semana }}" class="{% if dia.dia_semana == 'sáb' or dia.dia_semana == 'dom' %}fim-de-semana{% endif %}">
-                    <td>{{ dia.data_formatada }} {% if dia.editado_manualmente %}<span title="Editado Manualmente" style="cursor:help;">✍️</span>{% endif %}</td>
-                    <td class="{% if dia.dia_semana == 'dom' %}domingo{% endif %}">{{ dia.dia_semana }}</td>
+                    <td class="col-data-val">
+                        {{ dia.data_formatada }}
+                        {% if dia.editado_manualmente %}
+                            <span class="badge-editado" title="Marcação alterada manualmente no sistema">✍️ Editado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if dia.dia_semana == 'dom' %}
+                            <span class="badge-dia badge-dia-dom">Dom</span>
+                        {% elif dia.dia_semana == 'sáb' %}
+                            <span class="badge-dia badge-dia-sab">Sáb</span>
+                        {% else %}
+                            <span class="badge-dia badge-dia-util">{{ dia.dia_semana|capfirst }}</span>
+                        {% endif %}
+                    </td>
                     
                     <td><input type="time" class="e1" value="{{ dia.registro.entrada_1|time:'H:i'|default_if_none:'' }}"></td>
                     <td><input type="time" class="s1" value="{{ dia.registro.saida_1|time:'H:i'|default_if_none:'' }}"></td>
@@ -105,103 +753,137 @@
                     <td><input type="time" class="s2" value="{{ dia.registro.saida_2|time:'H:i'|default_if_none:'' }}"></td>
                     <td><input type="time" class="e3" value="{{ dia.registro.entrada_3|time:'H:i'|default_if_none:'' }}"></td>
                     <td><input type="time" class="s3" value="{{ dia.registro.saida_3|time:'H:i'|default_if_none:'' }}"></td>
-                    <td><button class="btn-salvar" onclick="salvarLinha(this)" title="Salvar Ponto">💾</button></td>
+                    <td>
+                        <button type="button" class="btn-salvar-linha" onclick="salvarLinha(this)" title="Salvar Ponto deste dia">
+                            💾
+                        </button>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
-    <script>
-        function salvarLinha(botao) {
-            // Pega a linha (<tr>) em que o botão foi clicado
-            const tr = botao.closest('tr');
-            
-            // Reúne todos os dados daquela linha
-            const payload = {
-                funcionario_id: document.getElementById('funcionario_id').value,
-                data: tr.getAttribute('data-data'),
-                dia_semana: tr.getAttribute('data-diasemana'),
-                e1: tr.querySelector('.e1').value,
-                s1: tr.querySelector('.s1').value,
-                e2: tr.querySelector('.e2').value,
-                s2: tr.querySelector('.s2').value,
-                e3: tr.querySelector('.e3').value,
-                s3: tr.querySelector('.s3').value
-            };
+</main>
 
-            // Pega o token de segurança do Django
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+<!-- CONTAINER DE TOASTS -->
+<div class="toast-container" id="toastContainer"></div>
 
-            // Muda o ícone para dar feedback ao usuário
-            botao.innerHTML = '⏳';
+<footer style="padding: 24px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; background: #ffffff;">
+    Prefeitura Municipal de Taquarituba • Gestão de Ponto Eletrônico & Integração Fiorilli Software
+</footer>
 
-            // Envia para o servidor
-            fetch('/ponto/salvar/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify(payload)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'sucesso') {
-                    botao.innerHTML = '✅'; // Sucesso!
-                    setTimeout(() => botao.innerHTML = '💾', 2000); // Volta ao normal após 2 seg
-                } else {
-                    alert("Erro ao salvar: " + data.mensagem);
-                    botao.innerHTML = '❌';
-                }
-            })
-            .catch(error => {
-                alert("Erro de conexão.");
+<script>
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span> <span>${message}</span>`;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(10px)';
+            toast.style.transition = 'all 0.3s';
+            setTimeout(() => toast.remove(), 300);
+        }, 3200);
+    }
+
+    function salvarLinha(botao) {
+        const tr = botao.closest('tr');
+        
+        const payload = {
+            funcionario_id: document.getElementById('funcionario_id').value,
+            data: tr.getAttribute('data-data'),
+            dia_semana: tr.getAttribute('data-diasemana'),
+            e1: tr.querySelector('.e1').value,
+            s1: tr.querySelector('.s1').value,
+            e2: tr.querySelector('.e2').value,
+            s2: tr.querySelector('.s2').value,
+            e3: tr.querySelector('.e3').value,
+            s3: tr.querySelector('.s3').value
+        };
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const iconOriginal = botao.innerHTML;
+        botao.innerHTML = '⏳';
+        botao.disabled = true;
+
+        fetch('/ponto/salvar/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            botao.disabled = false;
+            if (data.status === 'sucesso') {
+                botao.innerHTML = '✅';
+                showToast(`Ponto do dia ${tr.querySelector('.col-data-val').textContent.trim()} salvo com sucesso!`, 'success');
+                setTimeout(() => botao.innerHTML = '💾', 2000);
+            } else {
                 botao.innerHTML = '❌';
-            });
-        }
+                showToast("Erro ao salvar: " + (data.mensagem || 'Falha ao processar.'), 'error');
+                setTimeout(() => botao.innerHTML = '💾', 2000);
+            }
+        })
+        .catch(error => {
+            botao.disabled = false;
+            botao.innerHTML = '❌';
+            showToast("Erro de comunicação ao salvar ponto.", 'error');
+            setTimeout(() => botao.innerHTML = '💾', 2000);
+        });
+    }
 
-        function atualizarFuncionario() {
-            const btn = document.getElementById('btn_atualizar_funcionario');
-            const payload = {
-                funcionario_id: document.getElementById('funcionario_id').value,
-                nome: document.getElementById('nome_input').value,
-                matricula: document.getElementById('matricula_input').value,
-                pis: document.getElementById('pis_input').value,
-                cpf: document.getElementById('cpf_input').value,
-                grupo: document.getElementById('grupo_ponto_input').value
-            };
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    function atualizarFuncionario() {
+        const btn = document.getElementById('btn_atualizar_funcionario');
+        const payload = {
+            funcionario_id: document.getElementById('funcionario_id').value,
+            nome: document.getElementById('nome_input').value,
+            matricula: document.getElementById('matricula_input').value,
+            pis: document.getElementById('pis_input').value,
+            cpf: document.getElementById('cpf_input').value,
+            grupo: document.getElementById('grupo_ponto_input').value
+        };
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-            btn.innerHTML = '⏳ Processando...';
+        btn.innerHTML = '⏳ Processando...';
+        btn.disabled = true;
 
-            fetch('/ponto/atualizar-funcionario/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
-                },
-                body: JSON.stringify(payload)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'sucesso') {
-                    btn.innerHTML = '✅ Dados Atualizados!';
-                    btn.style.backgroundColor = '#155724';
-                    setTimeout(() => {
-                        btn.innerHTML = '💾 Salvar Alterações Cadastrais';
-                        btn.style.backgroundColor = '#28a745';
-                    }, 2000);
-                } else {
-                    alert("Erro ao atualizar dados: " + data.mensagem);
+        fetch('/ponto/atualizar-funcionario/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            btn.disabled = false;
+            if (data.status === 'sucesso') {
+                btn.innerHTML = '✅ Alterações Salvas!';
+                btn.style.backgroundColor = '#15803d';
+                showToast("Dados cadastrais do servidor atualizados com sucesso!", 'success');
+                setTimeout(() => {
                     btn.innerHTML = '💾 Salvar Alterações Cadastrais';
-                }
-            })
-            .catch(error => {
-                alert("Erro de conexão.");
+                    btn.style.backgroundColor = '#16a34a';
+                }, 2200);
+            } else {
+                showToast("Erro ao atualizar dados: " + (data.mensagem || 'Falha ao salvar.'), 'error');
                 btn.innerHTML = '💾 Salvar Alterações Cadastrais';
-            });
-        }
-    </script>
+            }
+        })
+        .catch(error => {
+            btn.disabled = false;
+            showToast("Erro de conexão ao atualizar dados cadastrais.", 'error');
+            btn.innerHTML = '💾 Salvar Alterações Cadastrais';
+        });
+    }
+</script>
+
 </body>
 </html>

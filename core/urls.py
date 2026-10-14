@@ -16,6 +16,7 @@ urlpatterns = [
     
     path('cadastrar/', views.cadastrar_funcionario, name='cadastrar_funcionario'),
     path('gerenciar/', views.listar_funcionarios, name='listar_funcionarios'),
+    path('sincronizar-servidores/', views.sincronizar_servidores_fiorilli, name='sincronizar_servidores_fiorilli'),
     path('importar/', views.importar_funcionarios, name='importar_funcionarios'),
     path('ponto/<int:funcionario_id>/', views.ver_ponto, name='ver_ponto'),
     path('ponto/salvar/', views.salvar_ponto, name='salvar_ponto'),
@@ -38,4 +39,8 @@ urlpatterns = [
     path('standby/ignorar/', views.ignorar_standby, name='ignorar_standby'),
     path('standby/reprocessar/', views.reprocessar_standby, name='reprocessar_standby'),
     path('standby/descartar/<int:id>/', views.descartar_standby, name='descartar_standby'),
+
+    # Rotas de Histórico e Reemissão de Comprovante
+    path('historico/', views.historico_lancamentos, name='historico_lancamentos'),
+    path('comprovante/<str:envio_id>/', views.reemitir_comprovante_pdf, name='reemitir_comprovante_pdf'),
 ]

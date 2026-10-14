@@ -3,155 +3,1110 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Gerenciar Funcionários</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Avançado • Gestão de Servidores & Ferramentas</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
-        th { background-color: #e0e0e0; }
-        
-        /* Caixa de busca e Select alinhados perfeitamente */
-        .search-box { 
-            width: 100%; 
-            height: 48px; 
-            padding: 0 12px; 
-            border: 1px solid #ccc; 
-            border-radius: 4px; 
-            font-size: 16px; 
-            box-sizing: border-box; 
-            font-family: inherit; 
-            outline: none; 
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
-        .search-box:focus {
-            border-color: #417690;
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f4f7fb;
+            color: #1e293b;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-        
-        .search-container { display: flex; gap: 10px; margin-bottom: 20px; }
+
+        /* TOPBAR */
+        .topbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 14px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 38px;
+            height: 38px;
+            background: #1a73e8;
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(26, 115, 232, 0.25);
+        }
+
+        .brand-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.2;
+        }
+
+        .brand-sub {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .user-area {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .fiorilli-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #eefcf3;
+            color: #166534;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #bbf7d0;
+        }
+
+        .badge-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .user-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            background: #f1f5f9;
+            padding: 6px 14px;
+            border-radius: 20px;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-link {
+            padding: 7px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-link:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+            color: #0f172a;
+        }
+
+        .btn-logout {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            padding: 7px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: #fee2e2;
+            color: #dc2626;
+            border-color: #fca5a5;
+        }
+
+        /* CONTAINER PRINCIPAL */
+        .main-container {
+            flex: 1;
+            max-width: 1280px;
+            width: 100%;
+            margin: 28px auto;
+            padding: 0 20px;
+        }
+
+        /* MENSAGENS / FLASH ALERTS */
+        .alert {
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .alert-success { background: #dcfce7; border: 1px solid #86efac; color: #166534; }
+        .alert-error { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+        .alert-warning { background: #fef3c7; border: 1px solid #fde68a; color: #92400e; }
+        .alert-info { background: #e0f2fe; border: 1px solid #bae6fd; color: #075985; }
+
+        /* HEADER SECTION */
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: -0.3px;
+        }
+
+        .page-desc {
+            font-size: 14px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .btn-novo-servidor {
+            background: #1a73e8;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 10px 18px;
+            border-radius: 8px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(26, 115, 232, 0.2);
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-novo-servidor:hover {
+            background: #1557b0;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(26, 115, 232, 0.25);
+        }
+
+        /* METRICS CARDS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .stat-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+
+        .stat-val {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.1;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* HUB DE AÇÕES / FERRAMENTAS */
+        .tools-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px 22px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+
+        .tools-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 12px;
+        }
+
+        .tool-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            color: #1e293b;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s;
+            cursor: pointer;
+            text-align: left;
+            width: 100%;
+            font-family: inherit;
+        }
+
+        .tool-btn:hover {
+            background: #ffffff;
+            border-color: #cbd5e1;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+            color: #1a73e8;
+        }
+
+        .tool-btn .tool-icon {
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* BUSCA E FILTROS */
+        .search-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-wrapper {
+            flex: 3;
+            min-width: 260px;
+            position: relative;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 15px;
+            pointer-events: none;
+        }
+
+        .search-input {
+            width: 100%;
+            height: 44px;
+            padding: 0 14px 0 40px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #1e293b;
+            background: #ffffff;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.12);
+        }
+
+        .select-wrapper {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .select-grupo {
+            width: 100%;
+            height: 44px;
+            padding: 0 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #1e293b;
+            background: #ffffff;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .select-grupo:focus {
+            border-color: #1a73e8;
+        }
+
+        /* TABELA DE FUNCIONÁRIOS */
+        .table-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            margin-bottom: 24px;
+        }
+
+        .table-header-info {
+            padding: 14px 20px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            padding: 12px 16px;
+            text-align: left;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        .badge-matricula {
+            font-family: monospace;
+            font-size: 12px;
+            font-weight: 700;
+            background: #f1f5f9;
+            color: #334155;
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            border: 1px solid #e2e8f0;
+        }
+
+        .servidor-nome-link {
+            color: #1a73e8;
+            font-weight: 600;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .servidor-nome-link:hover {
+            color: #1557b0;
+            text-decoration: underline;
+        }
+
+        .badge-grupo {
+            background: #eff6ff;
+            color: #1d4ed8;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+            border: 1px solid #dbeafe;
+        }
+
+        .mono-text {
+            font-family: monospace;
+            font-size: 12px;
+            color: #475569;
+        }
+
+        .btn-ver-ponto {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: #1a73e8;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            padding: 5px 12px;
+            border-radius: 6px;
+            background: #f0f7ff;
+            border: 1px solid #bfdbfe;
+            transition: all 0.2s;
+        }
+
+        .btn-ver-ponto:hover {
+            background: #1a73e8;
+            color: #ffffff;
+            border-color: #1a73e8;
+            transform: translateY(-1px);
+        }
+
+        .status-msg {
+            padding: 36px 20px;
+            text-align: center;
+            color: #64748b;
+        }
+
+        /* MODAL DE SINCRONIZAÇÃO COM BACKDROP BLUR */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-card {
+            background: #ffffff;
+            border-radius: 14px;
+            width: 100%;
+            max-width: 540px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            animation: modalFadeIn 0.25s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.96) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-header {
+            padding: 18px 22px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #ffffff;
+        }
+
+        .modal-icon-header {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: #eff6ff;
+            color: #1a73e8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .btn-fechar-modal {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            line-height: 1;
+        }
+
+        .btn-fechar-modal:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        /* SPINNER E ANIMAÇÃO DE PROGRESSO */
+        .sync-spinner {
+            width: 52px;
+            height: 52px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #1a73e8;
+            border-radius: 50%;
+            margin: 0 auto;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .sync-progress-bar {
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 24px;
+            position: relative;
+        }
+
+        .sync-progress-indeterminate {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 40%;
+            background: #1a73e8;
+            border-radius: 3px;
+            animation: indeterminate 1.5s infinite ease-in-out;
+        }
+
+        @keyframes indeterminate {
+            0% { left: -40%; }
+            50% { left: 40%; width: 50%; }
+            100% { left: 100%; width: 30%; }
+        }
+
+        .sync-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .sync-stat-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+        }
+
+        .sync-stat-num {
+            display: block;
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.1;
+        }
+
+        .sync-stat-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            margin-top: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
     </style>
 </head>
 <body>
-    <div class="card" style="max-width: 1200px; margin: 20px auto;">
-        <div class="card-header">
-            Gerenciar Funcionários
+
+<!-- TOPBAR -->
+<header class="topbar">
+    <div class="brand-area">
+        <div class="brand-logo">⚙️</div>
+        <div>
+            <div class="brand-title">Painel Avançado & Gestão de Servidores</div>
+            <div class="brand-sub">Conversor AFD • Prefeitura Municipal de Taquarituba</div>
         </div>
-        <div class="card-body">
-            
-            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center;">
-             <a href="{% url 'cadastrar_funcionario' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; width: 100%; height: 100%;">+ Cadastrar Novo</button>
-             </a>
-             <a href="{% url 'importar_funcionarios' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #5cb85c; width: 100%; height: 100%;">↑ Importar Funcionários</button>
-             </a>
-             <a href="{% url 'importar_afd' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #ffb74d; color: #333; width: 100%; height: 100%;">⏰ Importar AFD</button>
-             </a>
-             <a href="{% url 'importar_planilha' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
-             <button class="btn btn-primary" style="margin-bottom: 0; background-color: #17a2b8; color: white; width: 100%; height: 100%;">📊 Importar XLS</button>
-             </a>
-             <a href="{% url 'exportar_afd' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #28a745; color: white; width: 100%; height: 100%;">💾 Exportar AFD</button>
-             </a>
-             <a href="{% url 'gerenciar_grupos' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #6f42c1; color: white; width: 100%; height: 100%;">📁 Gerenciar Grupos</button>
-             </a>
-             <a href="{% url 'cadastro_ignorados' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #dc3545; color: white; width: 100%; height: 100%;">🚫 Cadastro de Ignorados</button>
-             </a>
-             <a href="{% url 'painel_standby' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #f59e0b; color: white; width: 100%; height: 100%;">⏳ Batidas em Standby</button>
-             </a>
-             <a href="{% url 'monitor_relogio' %}" style="text-decoration: none; flex: 1; min-width: 170px; display: flex;">
-                 <button class="btn btn-primary" style="margin-bottom: 0; background-color: #343a40; color: white; width: 100%; height: 100%;">📡 Monitor Relógio</button>
-             </a>
-         </div>
+    </div>
 
-            <div class="search-container">
-                <input type="text" id="campoBusca" class="search-box" style="flex: 3;" placeholder="Pesquisar por Nome, Matrícula, PIS ou CPF...">
-                
-                <select id="campoGrupo" class="search-box" style="flex: 1;">
-                    <option value="">Todos os Grupos</option>
-                    {% for grupo in grupos %}
-                        {% if grupo %}
-                            <option value="{{ grupo }}">{{ grupo }}</option>
-                        {% endif %}
-                    {% endfor %}
-                </select>
+    <div class="user-area">
+        <div class="fiorilli-badge">
+            <span class="badge-dot"></span> Fiorilli SIP Ativo
+        </div>
+        <span class="user-name">👤 {{ request.user.username }}</span>
+        <div class="nav-links">
+            <a href="{% url 'painel_standby' %}" class="btn-link">
+                ⏳ Standby {% if total_standby %}<span style="background: #f59e0b; color: white; padding: 1px 6px; border-radius: 10px; font-size: 11px;">{{ total_standby }}</span>{% endif %}
+            </a>
+            <a href="{% url 'historico_lancamentos' %}" class="btn-link">📜 Histórico</a>
+            <a href="{% url 'home' %}" class="btn-link">🏠 Início</a>
+            <form action="{% url 'logout' %}" method="post" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-logout">Sair</button>
+            </form>
+        </div>
+    </div>
+</header>
+
+<main class="main-container">
+
+    <!-- MENSAGENS -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
             </div>
-            
-            <table>
-                <thead>
-                    <tr>
-                        <th>Matrícula</th>
-                        <th>Nome Completo</th>
-                        <th>Grupo</th>
-                        <th>PIS</th>
-                        <th>CPF</th>
-                    </tr>
-                </thead>
-                <tbody id="corpoTabela">
-                    <tr>
-                        <td colspan="5" style="text-align: center; color: #777;">Digite pelo menos 3 caracteres ou escolha um grupo para carregar...</td>
-                    </tr>
-                </tbody>
-            </table>
+        {% endfor %}
+    {% endif %}
 
-            <a href="{% url 'home' %}" style="text-decoration: none;">
-                <button class="btn btn-secondary" style="margin-top: 20px;">Voltar para o Início</button>
+    <!-- CABEÇALHO DA PÁGINA -->
+    <div class="header-section">
+        <div>
+            <h1 class="page-title">Gestão de Servidores & Ferramentas de Ponto</h1>
+            <p class="page-desc">Consulte cadastros, visualize espelhos de batidas, administre lotes e configure parâmetros auxiliares.</p>
+        </div>
+        <div>
+            <a href="{% url 'cadastrar_funcionario' %}" class="btn-novo-servidor">
+                ➕ Cadastrar Novo Servidor
             </a>
         </div>
     </div>
 
-    <script>
-        const campoBusca = document.getElementById('campoBusca');
-        const campoGrupo = document.getElementById('campoGrupo');
-        const tbody = document.getElementById('corpoTabela');
+    <!-- CARDS DE MÉTRICAS -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #e0f2fe; color: #0284c7;">👥</div>
+            <div>
+                <div class="stat-val">{{ total_funcionarios|default:0 }}</div>
+                <div class="stat-label">Servidores Cadastrados</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #f3e8ff; color: #7c3aed;">📁</div>
+            <div>
+                <div class="stat-val">{{ total_grupos|default:0 }}</div>
+                <div class="stat-label">Grupos Departamentais</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #fef3c7; color: #d97706;">⏳</div>
+            <div>
+                <div class="stat-val">{{ total_standby|default:0 }}</div>
+                <div class="stat-label">Batidas em Standby</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #dcfce7; color: #16a34a;">📜</div>
+            <div>
+                <div class="stat-val">{{ total_historico|default:0 }}</div>
+                <div class="stat-label">Lotes no Histórico</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #fee2e2; color: #dc2626;">🚫</div>
+            <div>
+                <div class="stat-val">{{ total_ignorados|default:0 }}</div>
+                <div class="stat-label">IDs Ignorados</div>
+            </div>
+        </div>
+    </div>
 
-        function buscarFuncionarios() {
-            let query = campoBusca.value.trim();
-            let grupo = campoGrupo.value;
+    <!-- HUB DE FERRAMENTAS DO PAINEL AVANÇADO -->
+    <div class="tools-card">
+        <div class="tools-title">
+            <span>🛠️ Ferramentas & Módulos Administrativos</span>
+        </div>
+        <div class="tools-grid">
+            <!-- BOTÃO SINCRONIZAR SERVIDORES COM O SIP FIORILLI -->
+            <button type="button" class="tool-btn" id="btnSincronizarServidores" onclick="iniciarSincronizacaoFiorilli()" title="Conferir trabalhadores ativos no SIP e importar faltantes">
+                <span class="tool-icon" style="color: #1a73e8;">🔄</span>
+                <span>Sincronizar Servidores</span>
+            </button>
 
-            // Busca se o usuário digitou pelo menos 3 caracteres OU se selecionou algum grupo específico
-            if (query.length >= 3 || grupo !== '') {
+            <a href="{% url 'importar_afd' %}" class="tool-btn">
+                <span class="tool-icon" style="color: #f59e0b;">⏰</span>
+                <span>Importar AFD Antigo</span>
+            </a>
+            <a href="{% url 'importar_planilha' %}" class="tool-btn">
+                <span class="tool-icon" style="color: #0d9488;">📊</span>
+                <span>Importar XLS/CSV</span>
+            </a>
+            <a href="{% url 'exportar_afd' %}" class="tool-btn">
+                <span class="tool-icon" style="color: #059669;">💾</span>
+                <span>Exportar AFD (.txt)</span>
+            </a>
+            <a href="{% url 'gerenciar_grupos' %}" class="tool-btn">
+                <span class="tool-icon" style="color: #7c3aed;">📁</span>
+                <span>Gerenciar Grupos</span>
+            </a>
+            <a href="{% url 'cadastro_ignorados' %}" class="tool-btn">
+                <span class="tool-icon" style="color: #dc2626;">🚫</span>
+                <span>Cadastro de Ignorados</span>
+            </a>
+            <a href="{% url 'painel_standby' %}" class="tool-btn">
+                <span class="tool-icon" style="color: #ea580c;">⏳</span>
+                <span>Fila de Standby</span>
+            </a>
+            <a href="{% url 'historico_lancamentos' %}" class="tool-btn">
+                <span class="tool-icon" style="color: #1a73e8;">📜</span>
+                <span>Histórico de Lançamentos</span>
+            </a>
+            <a href="{% url 'monitor_relogio' %}" class="tool-btn">
+                <span class="tool-icon" style="color: #475569;">📡</span>
+                <span>Monitor do Relógio</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- BARRA DE BUSCA EM TEMPO REAL -->
+    <div class="search-card">
+        <div class="search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="campoBusca" class="search-input" placeholder="Pesquisar servidor por Nome, Matrícula, PIS ou CPF...">
+        </div>
+        <div class="select-wrapper">
+            <select id="campoGrupo" class="select-grupo">
+                <option value="">Todos os Grupos Departamentais</option>
+                {% for grupo in grupos %}
+                    {% if grupo %}
+                        <option value="{{ grupo }}">{{ grupo }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- TABELA DE SERVIDORES -->
+    <div class="table-card">
+        <div class="table-header-info">
+            <span id="labelResultados">Servidores Municipais Cadastrados</span>
+            <span style="font-size: 12px; font-weight: normal; color: #94a3b8;">Clique no nome do servidor para acessar seu espelho de ponto</span>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 120px;">Matrícula</th>
+                    <th>Nome do Servidor</th>
+                    <th style="width: 220px;">Grupo / Departamento</th>
+                    <th style="width: 150px;">PIS</th>
+                    <th style="width: 150px;">CPF</th>
+                    <th style="text-align: center; width: 140px;">Espelho</th>
+                </tr>
+            </thead>
+            <tbody id="corpoTabela">
+                {% for func in funcionarios_iniciais %}
+                <tr>
+                    <td><span class="badge-matricula">{{ func.matricula }}</span></td>
+                    <td>
+                        <a href="{% url 'ver_ponto' func.id %}" class="servidor-nome-link">
+                            {{ func.nome_completo }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if func.grupos.exists %}
+                            {% for g in func.grupos.all %}
+                                <span class="badge-grupo">{{ g.nome }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span style="color: #94a3b8; font-size: 12px;">Sem Grupo</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="mono-text">{{ func.pis|default:'-' }}</span></td>
+                    <td><span class="mono-text">{{ func.cpf|default:'-' }}</span></td>
+                    <td style="text-align: center;">
+                        <a href="{% url 'ver_ponto' func.id %}" class="btn-ver-ponto">
+                            Ver Ponto ➜
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="status-msg">
+                        Nenhum servidor cadastrado até o momento. Utilize o botão acima para cadastrar.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</main>
+
+<!-- MODAL DE SINCRONIZAÇÃO FIORILLI SIP -->
+<div id="modalSincronizacao" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+        <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="modal-icon-header">🔄</div>
+                <div>
+                    <h3 style="font-size: 16px; font-weight: 700; color: #0f172a;">Sincronização com o SIP Fiorilli</h3>
+                    <p style="font-size: 12px; color: #64748b;">Conferência de trabalhadores ativos e atualização da base</p>
+                </div>
+            </div>
+            <button type="button" class="btn-fechar-modal" onclick="fecharModalSincronizacao()">✕</button>
+        </div>
+
+        <div class="modal-body">
+            <!-- ESTADO 1: CARREGANDO / PROCESSANDO -->
+            <div id="syncLoading" style="text-align: center; padding: 24px 10px;">
+                <div class="sync-spinner"></div>
+                <h4 style="font-size: 16px; font-weight: 600; color: #1e293b; margin-top: 20px;" id="syncStatusTitle">Conectando ao SIP Fiorilli...</h4>
+                <p style="font-size: 13px; color: #64748b; margin-top: 8px;" id="syncStatusDesc">Consultando trabalhadores ativos na API e cruzando com o banco de dados local...</p>
                 
-                // Exibe "Carregando..." enquanto o servidor pensa
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">Buscando...</td></tr>';
+                <div class="sync-progress-bar">
+                    <div class="sync-progress-indeterminate"></div>
+                </div>
+            </div>
 
-                // Envia tanto o texto quanto o grupo para o Python (views.py)
+            <!-- ESTADO 2: SUCESSO -->
+            <div id="syncSuccess" style="display: none; padding: 4px 0;">
+                <div style="text-align: center; margin-bottom: 22px;">
+                    <div style="width: 52px; height: 52px; background: #dcfce7; color: #16a34a; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 12px; border: 2px solid #86efac;">
+                        ✓
+                    </div>
+                    <h4 style="font-size: 17px; font-weight: 700; color: #0f172a;">Sincronização Concluída com Sucesso!</h4>
+                    <p style="font-size: 13px; color: #64748b; margin-top: 4px;">A base local de servidores foi conferida e atualizada diretamente do SIP.</p>
+                </div>
+
+                <div class="sync-stats-grid">
+                    <div class="sync-stat-box">
+                        <span class="sync-stat-num" id="resTotalSip">0</span>
+                        <span class="sync-stat-label">Ativos no SIP Fiorilli</span>
+                    </div>
+                    <div class="sync-stat-box">
+                        <span class="sync-stat-num" id="resJaCadastrados" style="color: #0284c7;">0</span>
+                        <span class="sync-stat-label">Já em Conformidade</span>
+                    </div>
+                    <div class="sync-stat-box">
+                        <span class="sync-stat-num" id="resNovosImportados" style="color: #16a34a;">0</span>
+                        <span class="sync-stat-label">Novos Importados</span>
+                    </div>
+                    <div class="sync-stat-box">
+                        <span class="sync-stat-num" id="resAtualizados" style="color: #d97706;">0</span>
+                        <span class="sync-stat-label">Dados Atualizados</span>
+                    </div>
+                </div>
+
+                <!-- LISTAGEM PREVIEW DE NOVOS SERVIDORES IMPORTADOS -->
+                <div id="divNovosServidores" style="display: none; margin-top: 18px;">
+                    <div style="font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 8px;">
+                        Novos Servidores Adicionados:
+                    </div>
+                    <div id="listaNovosServidores" style="max-height: 130px; overflow-y: auto; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; font-size: 12px;"></div>
+                </div>
+
+                <div style="margin-top: 22px;">
+                    <button type="button" class="btn-novo-servidor" style="width: 100%; justify-content: center; padding: 12px; font-size: 14px;" onclick="location.reload()">
+                        ✓ Concluir e Atualizar Lista
+                    </button>
+                </div>
+            </div>
+
+            <!-- ESTADO 3: ERRO -->
+            <div id="syncError" style="display: none; text-align: center; padding: 16px 10px;">
+                <div style="width: 52px; height: 52px; background: #fee2e2; color: #dc2626; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 12px; border: 2px solid #fca5a5;">
+                    ✕
+                </div>
+                <h4 style="font-size: 16px; font-weight: 700; color: #991b1b;">Falha na Sincronização</h4>
+                <p id="syncErrorMsg" style="font-size: 13px; color: #475569; margin: 10px 0 20px; line-height: 1.5;"></p>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button type="button" class="btn-link" onclick="fecharModalSincronizacao()">Fechar</button>
+                    <button type="button" class="btn-novo-servidor" onclick="iniciarSincronizacaoFiorilli()">Tentar Novamente</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer style="padding: 24px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; background: #ffffff;">
+    Prefeitura Municipal de Taquarituba • Gestão de Ponto Eletrônico & Integração Fiorilli Software
+</footer>
+
+<script>
+    const campoBusca = document.getElementById('campoBusca');
+    const campoGrupo = document.getElementById('campoGrupo');
+    const tbody = document.getElementById('corpoTabela');
+    const labelResultados = document.getElementById('labelResultados');
+
+    let debounceTimer = null;
+
+    function buscarFuncionarios() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            const query = campoBusca.value.trim();
+            const grupo = campoGrupo.value;
+
+            if (query.length >= 3 || grupo !== '') {
+                tbody.innerHTML = '<tr><td colspan="6" class="status-msg">🔍 Pesquisando servidores...</td></tr>';
+                labelResultados.textContent = 'Resultados da Pesquisa';
+
                 fetch(`{% url 'listar_funcionarios' %}?q=${encodeURIComponent(query)}&grupo=${encodeURIComponent(grupo)}`)
                 .then(response => response.json())
                 .then(data => {
-                    tbody.innerHTML = ''; // Limpa a tabela
-                    
-                    if (data.funcionarios.length > 0) {
-                        // Preenche com os resultados
+                    tbody.innerHTML = '';
+                    if (data.funcionarios && data.funcionarios.length > 0) {
+                        labelResultados.textContent = `Encontrado(s) ${data.funcionarios.length} servidor(es)`;
                         data.funcionarios.forEach(func => {
                             tbody.innerHTML += `
                                 <tr>
-                                    <td>${func.matricula}</td>
-                                    <td><a href="/ponto/${func.id}/" style="color: #417690; font-weight: bold; text-decoration: underline;">${func.nome_completo}</a></td>
-                                    <td><span style="background-color: #e0e0e0; padding: 2px 6px; border-radius: 4px; font-size: 12px;">${func.grupo}</span></td>
-                                    <td>${func.pis}</td>
-                                    <td>${func.cpf}</td>
+                                    <td><span class="badge-matricula">${func.matricula}</span></td>
+                                    <td>
+                                        <a href="/ponto/${func.id}/" class="servidor-nome-link">
+                                            ${func.nome_completo}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        ${func.grupo !== 'Sem Grupo' ? `<span class="badge-grupo">${func.grupo}</span>` : '<span style="color: #94a3b8; font-size: 12px;">Sem Grupo</span>'}
+                                    </td>
+                                    <td><span class="mono-text">${func.pis || '-'}</span></td>
+                                    <td><span class="mono-text">${func.cpf || '-'}</span></td>
+                                    <td style="text-align: center;">
+                                        <a href="/ponto/${func.id}/" class="btn-ver-ponto">
+                                            Ver Ponto ➜
+                                        </a>
+                                    </td>
                                 </tr>
                             `;
                         });
                     } else {
-                        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Nenhum funcionário encontrado com estes filtros.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="6" class="status-msg" style="color: #dc2626;">Nenhum funcionário encontrado com estes filtros.</td></tr>';
+                        labelResultados.textContent = 'Nenhum resultado';
                     }
                 })
                 .catch(error => {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Erro ao buscar dados.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="status-msg" style="color: #dc2626;">Erro ao buscar dados no servidor.</td></tr>';
                 });
-            } else {
-                // Se limpar tudo, volta a mensagem original
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">Digite pelo menos 3 caracteres ou escolha um grupo para carregar...</td></tr>';
+            } else if (query.length === 0 && grupo === '') {
+                location.reload();
             }
-        }
+        }, 250);
+    }
 
-        // Os "Ouvintes" ficam prestando atenção em qualquer digitação ou mudança no grupo
-        campoBusca.addEventListener('input', buscarFuncionarios);
-        campoGrupo.addEventListener('change', buscarFuncionarios);
-    </script>
+    campoBusca.addEventListener('input', buscarFuncionarios);
+    campoGrupo.addEventListener('change', buscarFuncionarios);
+
+    /* FUNÇÕES DO MODAL DE SINCRONIZAÇÃO FIORILLI */
+    function abrirModalSincronizacao() {
+        document.getElementById('modalSincronizacao').style.display = 'flex';
+        document.getElementById('syncLoading').style.display = 'block';
+        document.getElementById('syncSuccess').style.display = 'none';
+        document.getElementById('syncError').style.display = 'none';
+    }
+
+    function fecharModalSincronizacao() {
+        document.getElementById('modalSincronizacao').style.display = 'none';
+    }
+
+    function iniciarSincronizacaoFiorilli() {
+        abrirModalSincronizacao();
+
+        fetch("{% url 'sincronizar_servidores_fiorilli' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(async response => {
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (e) {
+                // Não é JSON
+            }
+            if (!response.ok) {
+                const msg = data && data.erro ? data.erro : `Erro no servidor (HTTP ${response.status}).`;
+                throw new Error(msg);
+            }
+            if (!data) {
+                throw new Error("Resposta inválida do servidor.");
+            }
+            return data;
+        })
+        .then(body => {
+            document.getElementById('syncLoading').style.display = 'none';
+
+            if (body.sucesso) {
+                document.getElementById('syncSuccess').style.display = 'block';
+                document.getElementById('resTotalSip').textContent = body.total_sip;
+                document.getElementById('resJaCadastrados').textContent = body.total_ja_cadastrados;
+                document.getElementById('resNovosImportados').textContent = body.total_importados;
+                document.getElementById('resAtualizados').textContent = body.total_atualizados;
+
+                const divNovos = document.getElementById('divNovosServidores');
+                const listaNovos = document.getElementById('listaNovosServidores');
+                if (body.novos_importados && body.novos_importados.length > 0) {
+                    divNovos.style.display = 'block';
+                    listaNovos.innerHTML = body.novos_importados.map(n => 
+                        `<div style="padding: 5px 0; border-bottom: 1px solid #e2e8f0;"><strong>${n.matricula}</strong> • ${n.nome} <span style="color: #64748b;">(CPF: ${n.cpf})</span></div>`
+                    ).join('');
+                } else {
+                    divNovos.style.display = 'none';
+                }
+            } else {
+                document.getElementById('syncError').style.display = 'block';
+                document.getElementById('syncErrorMsg').textContent = body.erro || 'Ocorreu um erro ao comunicar com a API do SIP Fiorilli.';
+            }
+        })
+        .catch(err => {
+            document.getElementById('syncLoading').style.display = 'none';
+            document.getElementById('syncError').style.display = 'block';
+            document.getElementById('syncErrorMsg').textContent = err.message || 'Erro de comunicação de rede ou resposta do servidor.';
+        });
+    }
+</script>
+
 </body>
 </html>

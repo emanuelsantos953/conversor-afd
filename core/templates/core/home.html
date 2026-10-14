@@ -575,6 +575,24 @@
             display: none;
         }
 
+        .alert-msg {
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+        .alert-error {
+            background-color: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        .alert-info {
+            background-color: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -603,11 +621,11 @@
         <span class="user-name">👤 {{ request.user.username }}</span>
 
         <div class="nav-links">
+            {% if pode_acessar_conversor %}
             <a href="{% url 'painel_standby' %}" class="btn-link" title="Fila de Batidas em Standby e Inconsistências">
                 ⏳ Standby {% if total_standby_pendentes %}<span style="background: #f59e0b; color: white; padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: 700; margin-left: 3px;">{{ total_standby_pendentes }}</span>{% endif %}
             </a>
 
-            {% if pode_acessar_conversor %}
             <a href="{% url 'listar_funcionarios' %}" class="btn-link" title="Acessar tabelas e configurações de ponto">⚙️ Painel Avançado</a>
             {% endif %}
 
@@ -621,6 +639,16 @@
 
 <!-- ÁREA PRINCIPAL DO WIZARD -->
 <main class="main-container">
+    {% if messages %}
+    <div style="margin-bottom: 20px;">
+        {% for message in messages %}
+        <div class="alert-msg {% if message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <div class="wizard-card">
         
         <!-- HEADER DOS PASSOS -->
@@ -747,7 +775,11 @@
                 </div>
                 <div class="stat-box">
                     <div class="stat-val" id="resumo-enviadas-fiorilli" style="color: #16a34a;">0</div>
-                    <div class="stat-lbl">Enviadas à Fiorilli</div>
+                    <div class="stat-lbl">Transmitidas ao SIP</div>
+                </div>
+                <div class="stat-box" id="box-ja-existentes" style="display: none;">
+                    <div class="stat-val" id="resumo-ja-existentes" style="color: #64748b;">0</div>
+                    <div class="stat-lbl">Já no Lançamento</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-val" id="resumo-total-servidores" style="color: #7c3aed;">0</div>
@@ -969,6 +1001,17 @@
                     document.getElementById('resumo-total-batidas').textContent = data.resumo.total_batidas_periodo;
                     document.getElementById('resumo-enviadas-fiorilli').textContent = data.resumo.total_enviadas_sucesso;
                     document.getElementById('resumo-total-servidores').textContent = data.resumo.total_servidores;
+
+                    // Exibe card de já existentes se houver
+                    const boxJaExist = document.getElementById('box-ja-existentes');
+                    if (boxJaExist) {
+                        if (data.resumo.total_ja_existentes && data.resumo.total_ja_existentes > 0) {
+                            boxJaExist.style.display = 'block';
+                            document.getElementById('resumo-ja-existentes').textContent = data.resumo.total_ja_existentes;
+                        } else {
+                            boxJaExist.style.display = 'none';
+                        }
+                    }
 
                     // Exibe alerta de inconsistência/standby se houver
                     const alertSb = document.getElementById('alerta-standby-container');

@@ -310,7 +310,7 @@
 <body>
 
 <div class="actions-bar">
-    <a href="/" class="btn-action btn-back">⬅️ Voltar ao Sistema</a>
+    <button onclick="window.close()" class="btn-action btn-back" title="Fechar esta aba do comprovante">✕ Fechar Aba</button>
     <button onclick="window.print()" class="btn-action btn-print">🖨️ Salvar como PDF / Imprimir</button>
 </div>
 
@@ -416,8 +416,8 @@
 
     <div class="table-section">
         <div class="section-title">
-            <span>Relação de Batidas Transmitidas com Sucesso</span>
-            <span style="font-size: 11px; font-weight: normal; color: #6c757d;">Marcações vinculadas e registradas na Fiorilli</span>
+            <span>Relação de Batidas Processadas</span>
+            <span style="font-size: 11px; font-weight: normal; color: #6c757d;">Marcações vinculadas, transmitidas ou já existentes no lançamento</span>
         </div>
 
         <table>
@@ -429,7 +429,7 @@
                     <th class="col-nowrap" style="width: 120px;">Matrícula / Reg.</th>
                     <th class="col-nowrap" style="width: 150px;">Identificador (CPF/PIS)</th>
                     <th class="col-servidor">Servidor</th>
-                    <th class="col-center col-nowrap" style="width: 110px;">Status no SIP</th>
+                    <th class="col-center col-nowrap" style="width: 130px;">Status do Lançamento</th>
                 </tr>
             </thead>
             <tbody>
@@ -445,7 +445,7 @@
                         {% if b.status == 'SUCESSO' %}
                             <span class="badge-status badge-success">✅ Transmitida</span>
                         {% elif b.status == 'EXISTENTE' %}
-                            <span class="badge-status badge-existente">⚪ Já Existia</span>
+                            <span class="badge-status badge-existente">⚪ Já no Lançamento</span>
                         {% else %}
                             <span class="badge-status badge-success">✅ Registrada</span>
                         {% endif %}

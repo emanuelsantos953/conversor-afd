@@ -1,0 +1,563 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Histórico de Lançamentos • Conversor AFD</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* TOPBAR */
+        .topbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 14px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .brand-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 38px;
+            height: 38px;
+            background: #0284c7;
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .brand-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.2;
+        }
+
+        .brand-sub {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .user-area {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .user-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            background: #f1f5f9;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-link {
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-link:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        /* CONTAINER */
+        .main-container {
+            flex: 1;
+            max-width: 1300px;
+            width: 100%;
+            margin: 24px auto;
+            padding: 0 20px;
+        }
+
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .page-desc {
+            font-size: 14px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* STATS CARDS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .stat-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .stat-val {
+            font-size: 24px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.1;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* FILTROS */
+        .filter-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+
+        .filter-form {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filter-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .filter-input, .filter-select {
+            height: 40px;
+            padding: 0 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #1e293b;
+            background: #ffffff;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .filter-input:focus, .filter-select:focus {
+            border-color: #0284c7;
+        }
+
+        .btn-filter {
+            height: 40px;
+            padding: 0 20px;
+            background: #0284c7;
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            align-self: flex-end;
+            transition: background 0.2s;
+        }
+
+        .btn-filter:hover {
+            background: #0369a1;
+        }
+
+        .btn-clear {
+            height: 40px;
+            padding: 0 16px;
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            align-self: flex-end;
+            transition: all 0.2s;
+        }
+
+        .btn-clear:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+        /* TABELA */
+        .table-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            margin-bottom: 24px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background: #0f172a;
+            color: #ffffff;
+            font-weight: 600;
+            padding: 12px 14px;
+            text-align: left;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        .protocol-badge {
+            font-family: monospace;
+            font-size: 12px;
+            font-weight: 700;
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .user-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            color: #0f172a;
+            background: #f1f5f9;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 12px;
+        }
+
+        .badge-metric {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .metric-success {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .metric-existente {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .metric-standby {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .btn-reemitir {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #0284c7;
+            color: #ffffff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-reemitir:hover {
+            background: #0369a1;
+            transform: translateY(-1px);
+        }
+
+        .empty-state {
+            padding: 48px 20px;
+            text-align: center;
+            color: #64748b;
+        }
+
+        .empty-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+    <div class="brand-area">
+        <div class="brand-logo">📜</div>
+        <div>
+            <div class="brand-title">Histórico de Lançamentos</div>
+            <div class="brand-sub">Conversor AFD • Prefeitura Municipal de Taquarituba</div>
+        </div>
+    </div>
+
+    <div class="user-area">
+        <span class="user-name">👤 {{ request.user.username }}</span>
+        <div class="nav-links">
+            <a href="{% url 'painel_standby' %}" class="btn-link">⏳ Standby</a>
+            <a href="{% url 'listar_funcionarios' %}" class="btn-link">⚙️ Painel Avançado</a>
+            <a href="{% url 'home' %}" class="btn-link">🏠 Início</a>
+        </div>
+    </div>
+</header>
+
+<main class="main-container">
+
+    <!-- CABEÇALHO -->
+    <div class="header-section">
+        <div>
+            <h1 class="page-title">Lançamentos Realizados na Plataforma</h1>
+            <p class="page-desc">Auditoria completa dos lotes transmitidos ao SIP Fiorilli com reemissão instantânea de comprovantes oficiais em PDF.</p>
+        </div>
+        <div>
+            <a href="{% url 'home' %}" class="btn-link" style="background: #0284c7; color: white; border-color: #0284c7; padding: 10px 18px;">
+                ➕ Novo Envio de Batidas
+            </a>
+        </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #e0f2fe; color: #0284c7;">📁</div>
+            <div>
+                <div class="stat-val">{{ total_lotes|default:0 }}</div>
+                <div class="stat-label">Total de Lotes Enviados</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #dcfce7; color: #16a34a;">✅</div>
+            <div>
+                <div class="stat-val">{{ total_transmitidas|default:0 }}</div>
+                <div class="stat-label">Batidas Transmitidas</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #fef3c7; color: #d97706;">⚠️</div>
+            <div>
+                <div class="stat-val">{{ total_standby_geral|default:0 }}</div>
+                <div class="stat-label">Retidas em Standby</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #f3e8ff; color: #9333ea;">👥</div>
+            <div>
+                <div class="stat-val">{{ operadores|length|default:1 }}</div>
+                <div class="stat-label">Operadores Registrados</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILTROS -->
+    <div class="filter-card">
+        <form method="get" class="filter-form">
+            <div class="filter-group">
+                <label class="filter-label" for="operador">Filtrar por Usuário / Operador:</label>
+                <select name="operador" id="operador" class="filter-select">
+                    <option value="">Todos os Operadores</option>
+                    {% for op in operadores %}
+                        <option value="{{ op }}" {% if filtro_operador == op %}selected{% endif %}>
+                            👤 {{ op }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group" style="flex: 2;">
+                <label class="filter-label" for="q">Buscar por Protocolo ou Nome do Arquivo:</label>
+                <input type="text" name="q" id="q" value="{{ busca }}" class="filter-input" placeholder="Ex: ENV-89F5B6C8, afd_moderno_01.txt...">
+            </div>
+
+            <button type="submit" class="btn-filter">🔍 Filtrar</button>
+            {% if filtro_operador or busca %}
+                <a href="{% url 'historico_lancamentos' %}" class="btn-clear">✕ Limpar</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- TABELA DE LANÇAMENTOS -->
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 130px;">Protocolo</th>
+                    <th style="width: 150px;">Data do Envio</th>
+                    <th style="width: 170px;">Operador</th>
+                    <th>Arquivo de Origem</th>
+                    <th style="width: 160px;">Período do Ponto</th>
+                    <th style="width: 190px;">Resumo das Batidas</th>
+                    <th style="text-align: center; width: 170px;">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lote in lotes %}
+                <tr>
+                    <td>
+                        <span class="protocol-badge">{{ lote.envio_id }}</span>
+                    </td>
+                    <td>
+                        <strong>{{ lote.data_envio|date:"d/m/Y" }}</strong><br>
+                        <span style="font-size: 11px; color: #64748b;">às {{ lote.data_envio|date:"H:i:s" }}</span>
+                    </td>
+                    <td>
+                        <span class="user-tag">👤 {{ lote.username_responsavel }}</span>
+                    </td>
+                    <td>
+                        <div style="font-weight: 600; color: #0f172a;">{{ lote.nome_arquivo }}</div>
+                        <span style="font-size: 11px; color: #64748b;">Tipo: {{ lote.tipo_arquivo }} • Entidade {{ lote.entidade }}</span>
+                    </td>
+                    <td>
+                        {% if lote.data_inicio and lote.data_fim %}
+                            {{ lote.data_inicio|date:"d/m/Y" }} a {{ lote.data_fim|date:"d/m/Y" }}
+                        {% else %}
+                            <span style="color: #94a3b8;">Não especificado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                            {% if lote.total_enviadas_sucesso > 0 %}
+                                <span class="badge-metric metric-success" title="Batidas Transmitidas com Sucesso">
+                                    ✅ {{ lote.total_enviadas_sucesso }} transmitida(s)
+                                </span>
+                            {% endif %}
+                            {% if lote.total_ja_existentes > 0 %}
+                                <span class="badge-metric metric-existente" title="Já existiam no lançamento local ou SIP">
+                                    ⚪ {{ lote.total_ja_existentes }} já existia(m)
+                                </span>
+                            {% endif %}
+                            {% if lote.total_standby > 0 %}
+                                <span class="badge-metric metric-standby" title="Retidas em Standby">
+                                    ⚠️ {{ lote.total_standby }} standby
+                                </span>
+                            {% endif %}
+                            <span style="font-size: 11px; color: #64748b; margin-left: 2px;">
+                                (Total: {{ lote.total_batidas_periodo }})
+                            </span>
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <a href="{% url 'reemitir_comprovante_pdf' lote.envio_id %}" target="_blank" class="btn-reemitir" title="Abrir e imprimir comprovante oficial deste envio">
+                            📄 Reemitir Comprovante
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <div class="empty-icon">📭</div>
+                            <h3 style="font-size: 16px; font-weight: 600; color: #334155; margin-bottom: 6px;">Nenhum lançamento localizado</h3>
+                            <p style="font-size: 13px;">{% if filtro_operador or busca %}Nenhum registro corresponde aos filtros selecionados.{% else %}Os envios de ponto realizados através da tela inicial serão registrados e listados aqui automaticamente.{% endif %}</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</main>
+
+<footer style="padding: 20px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; background: #ffffff;">
+    Prefeitura Municipal de Taquarituba • Gestão de Ponto Eletrônico & Integração Fiorilli Software
+</footer>
+
+</body>
+</html>

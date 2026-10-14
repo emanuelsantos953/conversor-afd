@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 class Grupo(models.Model):
     nome = models.CharField(max_length=50, unique=True)
@@ -115,4 +116,35 @@ class BatidaStandby(models.Model):
 
     def __str__(self):
         return f"[{self.status}] {self.identificador_valor} ({self.data_hora.strftime('%d/%m/%Y %H:%M:%S')}) - {self.motivo_inconsistencia}"
+
+class HistoricoEnvio(models.Model):
+    envio_id = models.CharField(max_length=50, unique=True, db_index=True)
+    data_envio = models.DateTimeField(auto_now_add=True, db_index=True)
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='envios_ponto')
+    username_responsavel = models.CharField(max_length=150, db_index=True)
+    entidade = models.CharField(max_length=20, default='001')
+    nome_arquivo = models.CharField(max_length=255)
+    tipo_arquivo = models.CharField(max_length=50, default='AFD')
+
+    data_inicio = models.DateField(null=True, blank=True)
+    data_fim = models.DateField(null=True, blank=True)
+
+    total_batidas_periodo = models.IntegerField(default=0)
+    total_enviadas_sucesso = models.IntegerField(default=0)
+    total_ja_existentes = models.IntegerField(default=0)
+    total_standby = models.IntegerField(default=0)
+    total_ignorados = models.IntegerField(default=0)
+    total_servidores = models.IntegerField(default=0)
+
+    # Armazena o JSON completo do resumo (lista_batidas e lista_inconsistencias)
+    dados_resumo_json = models.TextField(blank=True, default='{}')
+
+    class Meta:
+        ordering = ['-data_envio']
+        verbose_name = 'Histórico de Envio'
+        verbose_name_plural = 'Histórico de Envios'
+
+    def __str__(self):
+        return f"[{self.envio_id}] {self.username_responsavel} - {self.data_envio.strftime('%d/%m/%Y %H:%M')}"
+
 
