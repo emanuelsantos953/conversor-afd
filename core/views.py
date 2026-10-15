@@ -17,8 +17,7 @@ from .models import Funcionario, RegistroPonto, PisIgnorado, MatriculaIgnorada, 
 from .fiorilli_service import FiorilliService
 from django.db import IntegrityError
 from django.db.models import Q  
-from django.utils import timezone
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import calendar
 
 logger = logging.getLogger(__name__)
@@ -147,6 +146,124 @@ def home(request):
         'total_standby_pendentes': total_standby_pendentes,
     })
 
+def sincronizar_batidas_fiorilli_previas(fiorilli_svc, funcionarios, dt_ini=None, dt_fim=None, max_workers=6):
+    """
+    Consulta em paralelo na API SIP Fiorilli as batidas existentes para os funcionários
+    do lote dentro do período selecionado (ex: lançadas manualmente pelo RH no Fiorilli)
+    e sincroniza na base local RegistroPonto antes do envio das novas batidas.
+    """
+    if not fiorilli_svc or not fiorilli_svc.auth_token or not funcionarios:
+        return 0, 0
+
+    import concurrent.futures
+
+    dias_semana_pt = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom']
+    slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
+
+    total_batidas_sip = 0
+    novas_importadas = 0
+
+    def _consultar_servidor(func):
+        reg = func.matricula
+        ident = func.cpf or func.pis
+        ok, batidas_sip, _ = fiorilli_svc.consultar_batidas_servidor(
+            registro=reg,
+            quantidade=80,
+            identificador_alternativo=ident,
+            nome_alternativo=func.nome_completo
+        )
+        return func, ok, batidas_sip
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {executor.submit(_consultar_servidor, func): func for func in funcionarios}
+        for future in concurrent.futures.as_completed(future_map):
+            try:
+                func, ok, batidas_sip = future.result()
+            except Exception as e:
+                logger.error(f"[Sincronização SIP] Erro na consulta do servidor: {e}")
+                continue
+
+            if not ok or not batidas_sip:
+                continue
+
+            for b in batidas_sip:
+                dh_str = str(b.get('dataHora') or b.get('dataReferencia') or '').strip()
+                if not dh_str:
+                    continue
+
+                dt_obj = None
+                try:
+                    # Formato brasileiro dd-MM-yyyy HH:mm[:ss] ou dd/MM/yyyy
+                    if len(dh_str) >= 10 and dh_str[2] in ('-', '/') and dh_str[5] in ('-', '/'):
+                        partes = dh_str.split()
+                        sep = dh_str[2]
+                        d_partes = partes[0].split(sep)
+                        dia = int(d_partes[0])
+                        mes = int(d_partes[1])
+                        ano = int(d_partes[2])
+                        dt_date = date(ano, mes, dia)
+                        if len(partes) > 1:
+                            t_partes = partes[1].split(':')
+                            dt_time = time(int(t_partes[0]), int(t_partes[1]), int(t_partes[2]) if len(t_partes) > 2 else 0)
+                        else:
+                            dt_time = time(0, 0)
+                        dt_obj = datetime.combine(dt_date, dt_time)
+                    elif len(dh_str) >= 10 and dh_str[4] in ('-', '/'):
+                        partes = dh_str.split()
+                        sep = dh_str[4]
+                        d_partes = partes[0].split(sep)
+                        ano = int(d_partes[0])
+                        mes = int(d_partes[1])
+                        dia = int(d_partes[2])
+                        dt_date = date(ano, mes, dia)
+                        if len(partes) > 1:
+                            t_partes = partes[1].split(':')
+                            dt_time = time(int(t_partes[0]), int(t_partes[1]), int(t_partes[2]) if len(t_partes) > 2 else 0)
+                        else:
+                            dt_time = time(0, 0)
+                        dt_obj = datetime.combine(dt_date, dt_time)
+                except Exception as ex:
+                    logger.debug(f"[Sincronização SIP] Erro ao converter data '{dh_str}': {ex}")
+                    continue
+
+                if not dt_obj:
+                    continue
+
+                d_batida = dt_obj.date()
+                h_batida = dt_obj.time()
+
+                if dt_ini and d_batida < dt_ini:
+                    continue
+                if dt_fim and d_batida > dt_fim:
+                    continue
+
+                total_batidas_sip += 1
+
+                try:
+                    reg_pt, _ = RegistroPonto.objects.get_or_create(
+                        funcionario=func,
+                        data=d_batida,
+                        defaults={'dia_semana': dias_semana_pt[d_batida.weekday()]}
+                    )
+                    ja_tem = any(
+                        getattr(reg_pt, s) == h_batida or
+                        (getattr(reg_pt, s).hour == h_batida.hour and getattr(reg_pt, s).minute == h_batida.minute)
+                        for s in slots if getattr(reg_pt, s) is not None
+                    )
+                    if not ja_tem and not reg_pt.editado_manualmente:
+                        horarios_existentes = [getattr(reg_pt, s) for s in slots if getattr(reg_pt, s) is not None]
+                        horarios_existentes.append(h_batida)
+                        horarios_ordenados = sorted(horarios_existentes)
+                        for idx, s in enumerate(slots):
+                            setattr(reg_pt, s, horarios_ordenados[idx] if idx < len(horarios_ordenados) else None)
+                        reg_pt.save()
+                        novas_importadas += 1
+                except Exception as e:
+                    logger.error(f"[Sincronização SIP] Erro ao gravar batida prévia de {func.nome_completo}: {e}")
+
+    logger.info(f"[Sincronização SIP] Concluída pré-conferência: {total_batidas_sip} batidas no SIP, {novas_importadas} importadas para base local.")
+    return total_batidas_sip, novas_importadas
+
 @login_required
 def processar_envio_batidas(request):
     """
@@ -216,6 +333,43 @@ def processar_envio_batidas(request):
         if f.matricula:
             funcs_cache[f.matricula.strip()] = f
 
+    # =========================================================================
+    # PRÉ-CONFERÊNCIA E SINCRONIZAÇÃO DAS BATIDAS DO SIP FIORILLI
+    # Identifica os servidores presentes no arquivo e puxa antecipadamente todas
+    # as batidas já lançadas no SIP (ex: lançamentos manuais do RH no Fiorilli).
+    # =========================================================================
+    funcionarios_no_lote = set()
+    for b in batidas:
+        ident_raw = str(b.get('identificador') or b.get('identificador_usado') or b.get('servidor_pis') or b.get('servidor_cpf') or b.get('cpf') or b.get('pis') or '').strip()
+        reg_raw = str(b.get('servidor_registro') or b.get('registro') or b.get('matricula') or '').strip()
+        nome_raw = str(b.get('nome_sugerido') or b.get('servidor_nome') or b.get('nome') or '').strip()
+
+        id_l = ''.join(c for c in ident_raw if c.isdigit())
+        reg_l = ''.join(c for c in reg_raw if c.isdigit())
+
+        func_cand = None
+        if id_l:
+            func_cand = funcs_cache.get(id_l)
+        if not func_cand and reg_l:
+            func_cand = funcs_cache.get(reg_l)
+        if not func_cand and nome_raw:
+            func_cand = Funcionario.objects.filter(nome_completo__iexact=nome_raw).first()
+
+        if func_cand:
+            funcionarios_no_lote.add(func_cand)
+
+    total_sincronizadas_sip = 0
+    if fiorilli_svc.auth_token and funcionarios_no_lote:
+        try:
+            total_sincronizadas_sip, _ = sincronizar_batidas_fiorilli_previas(
+                fiorilli_svc=fiorilli_svc,
+                funcionarios=list(funcionarios_no_lote),
+                dt_ini=dt_ini_obj,
+                dt_fim=dt_fim_obj
+            )
+        except Exception as e:
+            logger.error(f"[Pré-Sincronização SIP] Falha na pré-conferência com o SIP Fiorilli: {e}")
+
     total_processadas = len(batidas)
     total_enviadas = 0
     total_ja_existentes = 0
@@ -224,6 +378,8 @@ def processar_envio_batidas(request):
     servidores_set = set()
     batidas_detalhadas = []
     batidas_inconsistentes = []
+    novas_batidas_keys = set()
+    existentes_batidas_keys = set()
 
     # 0. Ordena as batidas cronologicamente por funcionário, data e hora
     # Isso garante que no mesmo dia as batidas sejam enviadas com a sequência correta:
@@ -341,6 +497,18 @@ def processar_envio_batidas(request):
                 reg = reg_fiorilli
                 reg_limpo = reg_fiorilli
 
+                if func not in funcionarios_no_lote:
+                    funcionarios_no_lote.add(func)
+                    try:
+                        sincronizar_batidas_fiorilli_previas(
+                            fiorilli_svc=fiorilli_svc,
+                            funcionarios=[func],
+                            dt_ini=dt_ini_obj,
+                            dt_fim=dt_fim_obj
+                        )
+                    except Exception:
+                        pass
+
         # 4. Se NÃO foi localizado nem no banco nem no SIP Fiorilli:
         #    CADASTRO ERRADO / TESTE / NOVO CONTRATADO -> RETÉM EM STANDBY
         if not func:
@@ -400,26 +568,51 @@ def processar_envio_batidas(request):
                 )
                 slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
                 # Verifica se a batida com este mesmo horário já está gravada nos slots deste dia
-                ja_tem = any(getattr(reg_pt, s) == hora_b for s in slots if getattr(reg_pt, s) is not None)
+                # (compara tanto o tempo exato quanto hora:minuto para evitar reenvio mesmo com variação de segundos)
+                ja_tem = any(
+                    getattr(reg_pt, s) == hora_b or
+                    (getattr(reg_pt, s).hour == hora_b.hour and getattr(reg_pt, s).minute == hora_b.minute)
+                    for s in slots if getattr(reg_pt, s) is not None
+                )
                 if ja_tem:
                     ja_existia_no_ponto = True
                 elif not reg_pt.editado_manualmente:
-                    for s in slots:
-                        if getattr(reg_pt, s) is None:
-                            setattr(reg_pt, s, hora_b)
-                            reg_pt.save()
-                            break
+                    # Coleta todos os horários existentes deste dia + o novo horário e reordena cronologicamente
+                    horarios_existentes = [getattr(reg_pt, s) for s in slots if getattr(reg_pt, s) is not None]
+                    horarios_existentes.append(hora_b)
+                    horarios_ordenados = sorted(horarios_existentes)
+                    for idx, s in enumerate(slots):
+                        setattr(reg_pt, s, horarios_ordenados[idx] if idx < len(horarios_ordenados) else None)
+                    reg_pt.save()
             except Exception as e:
                 logger.error(f"Erro ao gravar RegistroPonto para {func.nome_completo}: {e}")
+
+        if dt_obj:
+            hora_hhmm_tr = hora_b.strftime('%H:%M')
+            hora_full_tr = hora_b.strftime('%H:%M:%S')
+            data_iso_tr = data_b.isoformat()
+            if ja_existia_no_ponto:
+                existentes_batidas_keys.add(f"{func.id}_{data_iso_tr}_{hora_hhmm_tr}")
+                existentes_batidas_keys.add(f"{func.id}_{data_iso_tr}_{hora_full_tr}")
+                existentes_batidas_keys.add(f"{func.matricula}_{data_iso_tr}_{hora_hhmm_tr}")
+            else:
+                novas_batidas_keys.add(f"{func.id}_{data_iso_tr}_{hora_hhmm_tr}")
+                novas_batidas_keys.add(f"{func.id}_{data_iso_tr}_{hora_full_tr}")
+                novas_batidas_keys.add(f"{func.matricula}_{data_iso_tr}_{hora_hhmm_tr}")
 
         # Determina a sequência exata da batida no dia para a API Fiorilli.
         # Na API SIP da Fiorilli, tipoBatida aceita exclusivamente:
         # 1 = ENTRADA (qualquer entrada: E1, E2, E3...)
         # 2 = SAÍDA (qualquer saída: S1, S2, S3...)
-        chave_dia = (ident_limpo or reg_limpo or nome, str(d_ref or dh)[:10])
-        seq_dia = seq_por_dia.get(chave_dia, 0) + 1
-        seq_por_dia[chave_dia] = seq_dia
-        tipo_batida_efetivo = 1 if (seq_dia % 2 == 1) else 2
+        # Conta a posição cronológica da marcação no dia para alternar perfeitamente Entrada (ímpar) e Saída (par)
+        if dt_obj and func:
+            pos_cronologica = sum(1 for s in slots if getattr(reg_pt, s) is not None and getattr(reg_pt, s) <= hora_b)
+            tipo_batida_efetivo = 1 if (pos_cronologica % 2 == 1) else 2
+        else:
+            chave_dia = (ident_limpo or reg_limpo or nome, str(d_ref or dh)[:10])
+            seq_dia = seq_por_dia.get(chave_dia, 0) + 1
+            seq_por_dia[chave_dia] = seq_dia
+            tipo_batida_efetivo = 1 if (seq_dia % 2 == 1) else 2
 
         # 6. Transmissão para a API Fiorilli
         status_envio = "SUCESSO"
@@ -466,6 +659,14 @@ def processar_envio_batidas(request):
                 'status': status_envio
             })
 
+    # Gera a estrutura das folhas individuais por servidor com todos os dias do mês
+    folhas_funcionarios = montar_folhas_comprovante(
+        servidores_ids=list(servidores_set),
+        dt_ini_input=dt_ini_obj,
+        dt_fim_input=dt_fim_obj,
+        novas_batidas_keys=novas_batidas_keys
+    )
+
     envio_id = f"ENV-{uuid.uuid4().hex[:8].upper()}"
     resumo_dados = {
         'envio_id': envio_id,
@@ -480,12 +681,17 @@ def processar_envio_batidas(request):
         'total_batidas_periodo': total_processadas,
         'total_enviadas_sucesso': total_enviadas,
         'total_ja_existentes': total_ja_existentes,
+        'total_sincronizadas_sip': total_sincronizadas_sip,
         'total_standby': total_standby,
         'total_ignorados': total_ignorados,
-        'total_servidores': len(servidores_set),
+        'total_servidores': len(folhas_funcionarios),
+        'total_paginas': len(folhas_funcionarios) + 1,
         'tipo_arquivo': tipo_arq,
         'lista_batidas': batidas_detalhadas,
-        'lista_inconsistencias': batidas_inconsistentes
+        'lista_inconsistencias': batidas_inconsistentes,
+        'servidores_ids': list(servidores_set),
+        'novas_batidas_keys': list(novas_batidas_keys),
+        'folhas_funcionarios': folhas_funcionarios
     }
     request.session['ultimo_envio_ponto'] = resumo_dados
 
@@ -498,8 +704,8 @@ def processar_envio_batidas(request):
             entidade=request.session.get('fiorilli_entidade', '001'),
             nome_arquivo=arquivo.name,
             tipo_arquivo=tipo_arq,
-            data_inicio=dt_ini_obj.date() if dt_ini_obj else None,
-            data_fim=dt_fim_obj.date() if dt_fim_obj else None,
+            data_inicio=dt_ini_obj,
+            data_fim=dt_fim_obj,
             total_batidas_periodo=total_processadas,
             total_enviadas_sucesso=total_enviadas,
             total_ja_existentes=total_ja_existentes,
@@ -516,6 +722,237 @@ def processar_envio_batidas(request):
         'resumo': resumo_dados
     })
 
+def obter_feriado_brasil(dt):
+    """Retorna o nome do feriado nacional ou municipal de Taquarituba para a data informada."""
+    feriados = {
+        (1, 1): "Confraternização Universal",
+        (21, 4): "Tiradentes",
+        (1, 5): "Dia do Trabalhador",
+        (9, 7): "Revolução Constitucionalista",
+        (16, 8): "Aniversário de Taquarituba",
+        (7, 9): "Independência do Brasil",
+        (12, 10): "N. Sra. Aparecida",
+        (2, 11): "Finados",
+        (15, 11): "Proclamação da República",
+        (20, 11): "Consciência Negra",
+        (25, 12): "Natal",
+    }
+    return feriados.get((dt.day, dt.month), "")
+
+def montar_folhas_comprovante(servidores_ids, dt_ini_input, dt_fim_input, novas_batidas_keys=None):
+    """
+    Constrói a lista de folhas de comprovante com 1 folha por funcionário (quebra de página).
+    Lista todos os dias do mês (incluindo sábados, domingos e feriados), com todas as batidas
+    e indicação se cada batida já constava no sistema ou se é nova deste lançamento.
+    """
+    meses_pt = {
+        1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+        5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+        9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+    }
+    dias_semana_abrev = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+
+    if novas_batidas_keys is None:
+        novas_batidas_keys = set()
+    elif isinstance(novas_batidas_keys, list):
+        novas_batidas_keys = set(novas_batidas_keys)
+
+    # 1. Normalização das datas do período
+    dt_ini = None
+    dt_fim = None
+    if isinstance(dt_ini_input, str) and dt_ini_input.strip():
+        try:
+            dt_ini = datetime.strptime(dt_ini_input.strip()[:10], '%Y-%m-%d').date()
+        except Exception:
+            pass
+    elif isinstance(dt_ini_input, datetime):
+        dt_ini = dt_ini_input.date()
+    elif isinstance(dt_ini_input, date):
+        dt_ini = dt_ini_input
+
+    if isinstance(dt_fim_input, str) and dt_fim_input.strip():
+        try:
+            dt_fim = datetime.strptime(dt_fim_input.strip()[:10], '%Y-%m-%d').date()
+        except Exception:
+            pass
+    elif isinstance(dt_fim_input, datetime):
+        dt_fim = dt_fim_input.date()
+    elif isinstance(dt_fim_input, date):
+        dt_fim = dt_fim_input
+
+    if not dt_ini:
+        dt_ini = date.today().replace(day=1)
+    if not dt_fim:
+        _, ultimo_dia = calendar.monthrange(dt_ini.year, dt_ini.month)
+        dt_fim = date(dt_ini.year, dt_ini.month, ultimo_dia)
+
+    # Determina o intervalo de dias da folha do comprovante:
+    # 1. Se for dentro do mesmo mês (ex: 01/10 a 31/10 ou dentro de Outubro): lista o mês fechado completo (1 a 31)
+    # 2. Se for período quebrado entre meses (ex: 15/08 a 15/09 ou 21/08 a 20/09, corte clássico de folha):
+    #    lista rigorosamente todos os dias do período selecionado (ex: 32 dias), cabendo perfeitamente em 1 folha A4 por servidor!
+    if dt_ini.month == dt_fim.month and dt_ini.year == dt_fim.year:
+        dia_inicio_calc = date(dt_ini.year, dt_ini.month, 1)
+        _, ult_dia = calendar.monthrange(dt_ini.year, dt_ini.month)
+        dia_fim_calc = date(dt_ini.year, dt_ini.month, ult_dia)
+        mes_ano_rotulo = f"{meses_pt[dt_ini.month]} de {dt_ini.year}"
+    else:
+        dia_inicio_calc = dt_ini
+        dia_fim_calc = dt_fim
+        mes_ano_rotulo = f"{meses_pt[dt_ini.month]}/{dt_ini.year} a {meses_pt[dt_fim.month]}/{dt_fim.year}"
+
+    dias_calendario = []
+    curr = dia_inicio_calc
+    while curr <= dia_fim_calc:
+        dias_calendario.append(curr)
+        curr += timedelta(days=1)
+
+    # 2. Carrega funcionários
+    if not servidores_ids:
+        servidores_ids = list(RegistroPonto.objects.filter(
+            data__gte=dia_inicio_calc, data__lte=dia_fim_calc
+        ).values_list('funcionario_id', flat=True).distinct()[:150])
+
+    funcionarios = Funcionario.objects.filter(id__in=servidores_ids).prefetch_related('grupos').order_by('nome_completo')
+
+    # 3. Carrega registros em lote
+    registros_qs = RegistroPonto.objects.filter(
+        funcionario_id__in=servidores_ids,
+        data__gte=dia_inicio_calc,
+        data__lte=dia_fim_calc
+    )
+    ponto_map = {}
+    for r in registros_qs:
+        ponto_map[(r.funcionario_id, r.data)] = r
+
+    folhas = []
+    slots_defs = [
+        ('entrada_1', 'E1'),
+        ('saida_1', 'S1'),
+        ('entrada_2', 'E2'),
+        ('saida_2', 'S2'),
+        ('entrada_3', 'E3'),
+        ('saida_3', 'S3'),
+    ]
+
+    for func in funcionarios:
+        cpf_fmt = func.cpf or ''
+        if len(cpf_fmt) == 11:
+            cpf_fmt = f"{cpf_fmt[:3]}.{cpf_fmt[3:6]}.{cpf_fmt[6:9]}-{cpf_fmt[9:]}"
+
+        grupos_str = ", ".join(g.nome for g in func.grupos.all()) if func.grupos.exists() else 'Geral'
+
+        dias_linhas = []
+        total_batidas_func = 0
+        total_novas_func = 0
+        total_existentes_func = 0
+        dias_trabalhados = 0
+
+        for d in dias_calendario:
+            reg_pt = ponto_map.get((func.id, d))
+            w = d.weekday()
+            dia_sem_str = dias_semana_abrev[w]
+            is_sabado = (w == 5)
+            is_domingo = (w == 6)
+            is_fds = (w in (5, 6))
+            nome_feriado = obter_feriado_brasil(d)
+            is_feriado = bool(nome_feriado)
+
+            slots_dia = {}
+            qtd_batidas_dia = 0
+
+            for campo_nome, abrev in slots_defs:
+                val_hora = getattr(reg_pt, campo_nome) if reg_pt else None
+                if val_hora:
+                    hora_hhmm = val_hora.strftime('%H:%M')
+                    hora_full = val_hora.strftime('%H:%M:%S')
+
+                    key_1 = f"{func.id}_{d.isoformat()}_{hora_hhmm}"
+                    key_2 = f"{func.id}_{d.isoformat()}_{hora_full}"
+                    key_3 = f"{func.matricula}_{d.isoformat()}_{hora_hhmm}"
+                    key_4 = f"{func.matricula}_{d.isoformat()}_{hora_full}"
+
+                    is_nova = (key_1 in novas_batidas_keys or
+                               key_2 in novas_batidas_keys or
+                               key_3 in novas_batidas_keys or
+                               key_4 in novas_batidas_keys)
+
+                    qtd_batidas_dia += 1
+                    total_batidas_func += 1
+                    if is_nova:
+                        total_novas_func += 1
+                    else:
+                        total_existentes_func += 1
+
+                    slots_dia[abrev.lower()] = {
+                        'hora': hora_hhmm,
+                        'presente': True,
+                        'is_nova': is_nova,
+                        'rotulo': 'Nova (lançada neste envio)' if is_nova else 'Já existente no sistema antes do envio'
+                    }
+                else:
+                    slots_dia[abrev.lower()] = {
+                        'hora': '',
+                        'presente': False,
+                        'is_nova': False,
+                        'rotulo': ''
+                    }
+
+            if qtd_batidas_dia > 0:
+                dias_trabalhados += 1
+
+            if is_feriado:
+                status_dia = f"Feriado ({nome_feriado})"
+            elif is_domingo:
+                status_dia = "Domingo / DSR"
+            elif is_sabado:
+                status_dia = "Sábado / DSR"
+            elif qtd_batidas_dia > 0:
+                status_dia = f"{qtd_batidas_dia} batida(s)"
+            else:
+                status_dia = "Folga / Sem batidas"
+
+            dias_linhas.append({
+                'dia_num': f"{d.day:02d}",
+                'data_fmt': d.strftime('%d/%m/%Y'),
+                'data_iso': d.isoformat(),
+                'dia_semana': dia_sem_str,
+                'is_fim_de_semana': is_fds,
+                'is_sabado': is_sabado,
+                'is_domingo': is_domingo,
+                'is_feriado': is_feriado,
+                'nome_feriado': nome_feriado,
+                'e1': slots_dia['e1'],
+                's1': slots_dia['s1'],
+                'e2': slots_dia['e2'],
+                's2': slots_dia['s2'],
+                'e3': slots_dia['e3'],
+                's3': slots_dia['s3'],
+                'qtd_batidas': qtd_batidas_dia,
+                'status_dia': status_dia
+            })
+
+        # Se o colaborador não possui nenhuma batida no período do arquivo, não deve fazer parte do documento
+        if total_batidas_func == 0:
+            continue
+
+        folhas.append({
+            'funcionario_id': func.id,
+            'matricula': func.matricula,
+            'nome': func.nome_completo,
+            'cpf': cpf_fmt,
+            'pis': func.pis or '-',
+            'departamento': grupos_str,
+            'mes_ano_rotulo': mes_ano_rotulo,
+            'periodo_extenso': f"{dt_ini.strftime('%d/%m/%Y')} a {dt_fim.strftime('%d/%m/%Y')}",
+            'total_batidas': total_batidas_func,
+            'total_novas': total_novas_func,
+            'total_existentes': total_existentes_func,
+            'dias_trabalhados': dias_trabalhados,
+            'dias': dias_linhas
+        })
+
+    return folhas
+
 @login_required
 def comprovante_envio_pdf(request):
     """Renderiza a página formatada em layout oficial para impressão / salvar em PDF."""
@@ -523,6 +960,18 @@ def comprovante_envio_pdf(request):
     if not resumo:
         messages.warning(request, "Nenhum envio recente localizado para gerar o comprovante.")
         return redirect('home')
+
+    if not resumo.get('folhas_funcionarios'):
+        resumo['folhas_funcionarios'] = montar_folhas_comprovante(
+            servidores_ids=resumo.get('servidores_ids', []),
+            dt_ini_input=resumo.get('data_inicio'),
+            dt_fim_input=resumo.get('data_fim'),
+            novas_batidas_keys=set(resumo.get('novas_batidas_keys', []))
+        )
+
+    resumo['total_servidores'] = len(resumo.get('folhas_funcionarios', []))
+    resumo['total_paginas'] = len(resumo.get('folhas_funcionarios', [])) + 1
+
     return render(request, 'core/comprovante_pdf.html', {'resumo': resumo})
 
 @login_required
@@ -601,6 +1050,22 @@ def reemitir_comprovante_pdf(request, envio_id):
             'lista_batidas': [],
             'lista_inconsistencias': []
         }
+
+    if not resumo.get('folhas_funcionarios'):
+        serv_ids = resumo.get('servidores_ids', [])
+        if not serv_ids and resumo.get('lista_batidas'):
+            regs = [b.get('registro') for b in resumo.get('lista_batidas') if b.get('registro') and b.get('registro') != '-']
+            serv_ids = list(Funcionario.objects.filter(matricula__in=regs).values_list('id', flat=True))
+
+        resumo['folhas_funcionarios'] = montar_folhas_comprovante(
+            servidores_ids=serv_ids,
+            dt_ini_input=resumo.get('data_inicio') or (lote.data_inicio.isoformat() if lote.data_inicio else None),
+            dt_fim_input=resumo.get('data_fim') or (lote.data_fim.isoformat() if lote.data_fim else None),
+            novas_batidas_keys=set(resumo.get('novas_batidas_keys', []))
+        )
+
+    resumo['total_servidores'] = len(resumo.get('folhas_funcionarios', []))
+    resumo['total_paginas'] = len(resumo.get('folhas_funcionarios', [])) + 1
 
     return render(request, 'core/comprovante_pdf.html', {'resumo': resumo})
 
@@ -1202,15 +1667,18 @@ def sincronizar_servidores_fiorilli(request):
         }, status=500)
 
     # Carrega dados atuais do banco local para evitar dezenas de queries repetidas
-    funcionarios_existentes = list(Funcionario.objects.all())
+    funcionarios_existentes = list(Funcionario.objects.prefetch_related('grupos').all())
     mapa_matr = {f.matricula.strip(): f for f in funcionarios_existentes if f.matricula}
     mapa_cpf = {f.cpf.strip(): f for f in funcionarios_existentes if f.cpf}
     mapa_pis = {f.pis.strip(): f for f in funcionarios_existentes if f.pis}
+
+    mapa_grupos = {g.nome: g for g in Grupo.objects.all()}
 
     total_sip = len(trabalhadores_sip)
     total_ja_cadastrados = 0
     total_importados = 0
     total_atualizados = 0
+    total_grupos_atualizados = 0
     novos_importados = []
 
     for t in trabalhadores_sip:
@@ -1222,6 +1690,17 @@ def sincronizar_servidores_fiorilli(request):
         pis = ''.join(c for c in str(t.get("pis", "")) if c.isdigit())
         matr = ''.join(c for c in str(t.get("matricula", "")) if c.isdigit())
         nome = str(t.get("nome", "")).strip().upper()
+
+        # Determina o grupo de ponto fornecido pelo SIP (Local de Trabalho ou Subdivisão)
+        nome_grupo_sip = (t.get("localTrabalhoNome") or t.get("subdivisaoNome") or "").strip()
+        grupo_sip_obj = None
+        if nome_grupo_sip:
+            nome_grupo_sip = nome_grupo_sip[:150]
+            if nome_grupo_sip in mapa_grupos:
+                grupo_sip_obj = mapa_grupos[nome_grupo_sip]
+            else:
+                grupo_sip_obj, _ = Grupo.objects.get_or_create(nome=nome_grupo_sip)
+                mapa_grupos[nome_grupo_sip] = grupo_sip_obj
 
         # Tenta localizar por registro/matrícula, CPF ou PIS
         func = (
@@ -1246,6 +1725,9 @@ def sincronizar_servidores_fiorilli(request):
                     cpf=cpf_salvar,
                     pis=pis_salvar
                 )
+                if grupo_sip_obj:
+                    novo.grupos.set([grupo_sip_obj])
+
                 mapa_matr[matricula_salvar] = novo
                 if cpf_salvar:
                     mapa_cpf[cpf_salvar] = novo
@@ -1256,12 +1738,13 @@ def sincronizar_servidores_fiorilli(request):
                     novos_importados.append({
                         'matricula': matricula_salvar,
                         'nome': nome or f"Servidor {matricula_salvar}",
-                        'cpf': cpf_salvar or '-'
+                        'cpf': cpf_salvar or '-',
+                        'grupo': nome_grupo_sip or '-'
                     })
             except Exception as e:
                 logger.warning(f"[Sincronizar Servidores] Erro ao salvar novo servidor {matricula_salvar}: {e}")
         else:
-            # Servidor já cadastrado -> atualiza dados faltantes se houver
+            # Servidor já cadastrado -> atualiza dados faltantes e substitui grupos pelos do SIP
             alterou = False
             if not func.cpf and cpf and cpf not in mapa_cpf:
                 func.cpf = cpf
@@ -1277,6 +1760,14 @@ def sincronizar_servidores_fiorilli(request):
             if alterou:
                 func.save()
                 total_atualizados += 1
+
+            # Sincroniza / substitui os grupos locais pelo grupo oficial do SIP
+            if grupo_sip_obj:
+                grupos_atuais_ids = {g.id for g in func.grupos.all()}
+                if grupos_atuais_ids != {grupo_sip_obj.id}:
+                    func.grupos.set([grupo_sip_obj])
+                    total_grupos_atualizados += 1
+
             total_ja_cadastrados += 1
 
     return JsonResponse({
@@ -1285,6 +1776,7 @@ def sincronizar_servidores_fiorilli(request):
         'total_ja_cadastrados': total_ja_cadastrados,
         'total_importados': total_importados,
         'total_atualizados': total_atualizados,
+        'total_grupos_atualizados': total_grupos_atualizados,
         'total_banco_final': Funcionario.objects.count(),
         'novos_importados': novos_importados
     })
@@ -1897,24 +2389,27 @@ def vincular_enviar_standby(request):
             data=data_b,
             defaults={'dia_semana': dias_semana_pt[data_b.weekday()]}
         )
-        if not reg_pt.editado_manualmente:
-            slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
-            ja_tem = any(getattr(reg_pt, s) == hora_b for s in slots if getattr(reg_pt, s) is not None)
-            if not ja_tem:
-                for s in slots:
-                    if getattr(reg_pt, s) is None:
-                        setattr(reg_pt, s, hora_b)
-                        reg_pt.save()
-                        break
+        slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
+        ja_tem = any(
+            getattr(reg_pt, s) == hora_b or
+            (getattr(reg_pt, s).hour == hora_b.hour and getattr(reg_pt, s).minute == hora_b.minute)
+            for s in slots if getattr(reg_pt, s) is not None
+        )
+        if not ja_tem and not reg_pt.editado_manualmente:
+            for s in slots:
+                if getattr(reg_pt, s) is None:
+                    setattr(reg_pt, s, hora_b)
+                    reg_pt.save()
+                    break
 
         # Alternância de tipo (1 = Entrada, 2 = Saída)
         seq_dia = seq_por_dia.get(d_ref_str, 0) + 1
         seq_por_dia[d_ref_str] = seq_dia
         tipo_efetivo = 1 if (seq_dia % 2 == 1) else 2
 
-        # Transmissão Fiorilli
+        # Transmissão Fiorilli: pula o envio caso a batida já exista no ponto local
         f_id = None
-        if fiorilli_svc.auth_token:
+        if not ja_tem and fiorilli_svc.auth_token:
             ok, msg, f_id = fiorilli_svc.enviar_batida(
                 registro=func.matricula,
                 data_referencia=d_ref_str,
@@ -2022,22 +2517,7 @@ def reprocessar_standby(request):
             d_ref_str = b.data_referencia.strftime('%Y-%m-%d') if b.data_referencia else b.data_hora.strftime('%Y-%m-%d')
             dh_str = b.data_hora.strftime('%Y-%m-%d %H:%M:%S')
 
-            # Alternância de tipo (1 = Entrada, 2 = Saída)
-            seq_dia = seq_por_dia.get(d_ref_str, 0) + 1
-            seq_por_dia[d_ref_str] = seq_dia
-            tipo_efetivo = 1 if (seq_dia % 2 == 1) else 2
-
-            ok, msg, f_id = fiorilli_svc.enviar_batida(
-                registro=reg_sip,
-                data_referencia=d_ref_str,
-                data_hora=dh_str,
-                tipo_batida=tipo_efetivo,
-                tipo_coletor="DISPOSITIVO_ELETRONICO",
-                identificador_alternativo=id_limpo,
-                nome_alternativo=b.nome_original
-            )
-
-            # Grava localmente
+            # Grava localmente e verifica duplicata no ponto
             data_b = b.data_hora.date()
             hora_b = b.data_hora.time()
             reg_pt, _ = RegistroPonto.objects.get_or_create(
@@ -2045,15 +2525,36 @@ def reprocessar_standby(request):
                 data=data_b,
                 defaults={'dia_semana': dias_semana_pt[data_b.weekday()]}
             )
-            if not reg_pt.editado_manualmente:
-                slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
-                ja_tem = any(getattr(reg_pt, s) == hora_b for s in slots if getattr(reg_pt, s) is not None)
-                if not ja_tem:
-                    for s in slots:
-                        if getattr(reg_pt, s) is None:
-                            setattr(reg_pt, s, hora_b)
-                            reg_pt.save()
-                            break
+            slots = ['entrada_1', 'saida_1', 'entrada_2', 'saida_2', 'entrada_3', 'saida_3']
+            ja_tem = any(
+                getattr(reg_pt, s) == hora_b or
+                (getattr(reg_pt, s).hour == hora_b.hour and getattr(reg_pt, s).minute == hora_b.minute)
+                for s in slots if getattr(reg_pt, s) is not None
+            )
+            if not ja_tem and not reg_pt.editado_manualmente:
+                for s in slots:
+                    if getattr(reg_pt, s) is None:
+                        setattr(reg_pt, s, hora_b)
+                        reg_pt.save()
+                        break
+
+            # Alternância de tipo (1 = Entrada, 2 = Saída)
+            seq_dia = seq_por_dia.get(d_ref_str, 0) + 1
+            seq_por_dia[d_ref_str] = seq_dia
+            tipo_efetivo = 1 if (seq_dia % 2 == 1) else 2
+
+            # Transmissão Fiorilli: pula caso a batida já exista localmente
+            f_id = None
+            if not ja_tem and fiorilli_svc.auth_token:
+                ok, msg, f_id = fiorilli_svc.enviar_batida(
+                    registro=reg_sip,
+                    data_referencia=d_ref_str,
+                    data_hora=dh_str,
+                    tipo_batida=tipo_efetivo,
+                    tipo_coletor="DISPOSITIVO_ELETRONICO",
+                    identificador_alternativo=id_limpo,
+                    nome_alternativo=b.nome_original
+                )
 
             b.status = 'VINCULADO_ENVIADO'
             b.servidor_vinculado = func

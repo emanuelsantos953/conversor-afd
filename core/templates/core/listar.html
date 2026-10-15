@@ -934,8 +934,8 @@
                         <span class="sync-stat-label">Novos Importados</span>
                     </div>
                     <div class="sync-stat-box">
-                        <span class="sync-stat-num" id="resAtualizados" style="color: #d97706;">0</span>
-                        <span class="sync-stat-label">Dados Atualizados</span>
+                        <span class="sync-stat-num" id="resGruposAtualizados" style="color: #8b5cf6;">0</span>
+                        <span class="sync-stat-label">Grupos Sincronizados do SIP</span>
                     </div>
                 </div>
 
@@ -1083,7 +1083,7 @@
                 document.getElementById('resTotalSip').textContent = body.total_sip;
                 document.getElementById('resJaCadastrados').textContent = body.total_ja_cadastrados;
                 document.getElementById('resNovosImportados').textContent = body.total_importados;
-                document.getElementById('resAtualizados').textContent = body.total_atualizados;
+                document.getElementById('resGruposAtualizados').textContent = body.total_grupos_atualizados || 0;
 
                 const divNovos = document.getElementById('divNovosServidores');
                 const listaNovos = document.getElementById('listaNovosServidores');

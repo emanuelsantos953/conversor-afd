@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comprovante de Envio de Batidas - Fiorilli SIP</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Comprovante de Batidas de Ponto - Prefeitura Municipal de Taquarituba</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
             box-sizing: border-box;
@@ -13,75 +13,189 @@
         }
 
         body {
-            font-family: 'Inter', Arial, sans-serif;
-            background-color: #f1f3f5;
-            color: #212529;
-            padding: 30px 15px;
-            font-size: 13px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            padding: 25px 15px 80px 15px;
+            font-size: 12px;
+            line-height: 1.4;
         }
 
-        .document-container {
-            max-width: 860px;
+        /* BARRA DE AÇÕES FLUTUANTE (SOMENTE NA TELA) */
+        .actions-bar {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(8px);
+            padding: 10px 16px;
+            border-radius: 40px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+            z-index: 9999;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .actions-bar .info-label-bar {
+            color: #cbd5e1;
+            font-size: 12px;
+            font-weight: 500;
+            padding-right: 8px;
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .select-servidor-jump {
+            background: #1e293b;
+            color: #ffffff;
+            border: 1px solid #475569;
+            border-radius: 20px;
+            padding: 8px 12px;
+            font-size: 12px;
+            outline: none;
+            cursor: pointer;
+            max-width: 220px;
+        }
+
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 18px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-print {
+            background: #2563eb;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+        }
+
+        .btn-print:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .btn-back {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .btn-back:hover {
+            background: #475569;
+        }
+
+        /* CONTAINER DAS FOLHAS */
+        .page-container {
+            max-width: 900px;
             margin: 0 auto;
+        }
+
+        /* FOLHA DE ROSTO (CAPA DO LOTE) */
+        .folha-rosto {
             background: #ffffff;
-            padding: 40px 45px;
+            border: 1px solid #cbd5e1;
             border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            border: 1px solid #dee2e6;
+            padding: 35px 40px;
+            margin-bottom: 35px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
             position: relative;
         }
 
-        /* CABEÇALHO OFICIAL */
-        .header {
-            text-align: center;
-            border-bottom: 2px solid #0d1b2a;
-            padding-bottom: 16px;
-            margin-bottom: 24px;
+        /* FOLHA INDIVIDUAL POR SERVIDOR */
+        .folha-servidor {
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 30px 35px;
+            margin-bottom: 35px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            position: relative;
+            page-break-after: always;
+            break-after: page;
         }
 
-        .header h1 {
-            font-size: 18px;
+        .folha-servidor:last-child {
+            margin-bottom: 0;
+            page-break-after: avoid;
+            break-after: avoid;
+        }
+
+        /* CABEÇALHOS OFICIAIS */
+        .header-oficial {
+            text-align: center;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 12px;
+            margin-bottom: 18px;
+            position: relative;
+        }
+
+        .badge-numero-pagina {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            background: #0f172a;
+            color: #ffffff;
+            font-size: 11px;
             font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .header-oficial h1 {
+            font-size: 16px;
+            font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            color: #0d1b2a;
+            color: #0f172a;
+            margin-bottom: 2px;
+        }
+
+        .header-oficial h2 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
             margin-bottom: 4px;
         }
 
-        .header h2 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #415a77;
-            margin-bottom: 6px;
+        .header-oficial .subtitulo {
+            font-size: 11px;
+            color: #64748b;
         }
 
-        .header .subtitle {
-            font-size: 12px;
-            color: #6c757d;
-        }
-
-        .protocol-badge {
+        .protocolo-tag {
             display: inline-block;
-            background: #e9ecef;
-            color: #495057;
-            padding: 4px 12px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+            padding: 3px 10px;
             border-radius: 4px;
             font-family: monospace;
-            font-size: 12px;
-            font-weight: 600;
-            margin-top: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-top: 6px;
         }
 
-        /* GRID DE INFORMAÇÕES */
+        /* GRID DE INFORMAÇÕES DO LOTE */
         .info-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
+            gap: 12px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
             border-radius: 6px;
-            padding: 16px 20px;
-            margin-bottom: 24px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
         }
 
         .info-item {
@@ -90,392 +204,950 @@
         }
 
         .info-label {
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 10px;
+            font-weight: 700;
             text-transform: uppercase;
-            color: #6c757d;
+            color: #64748b;
             margin-bottom: 2px;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
         }
 
-        .info-value {
-            font-size: 13px;
+        .info-val {
+            font-size: 12.5px;
             font-weight: 600;
-            color: #212529;
+            color: #0f172a;
         }
 
-        /* CARDS RESUMO */
-        .stats-cards {
+        /* CARDS DE RESUMO DO LOTE */
+        .stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            margin-bottom: 24px;
+            gap: 10px;
+            margin-bottom: 22px;
         }
 
         .stat-card {
-            border: 1px solid #dee2e6;
+            border: 1px solid #e2e8f0;
             border-radius: 6px;
-            padding: 12px 14px;
+            padding: 10px 12px;
             text-align: center;
             background: #ffffff;
         }
 
-        .stat-card.success {
-            border-color: #a3cfbb;
-            background: #f1f8f5;
+        .stat-card.destaque-sucesso {
+            border-color: #86efac;
+            background: #f0fdf4;
+        }
+
+        .stat-card.destaque-standby {
+            border-color: #fde68a;
+            background: #fffdf5;
         }
 
         .stat-num {
-            font-size: 20px;
-            font-weight: 700;
-            color: #198754;
+            font-size: 18px;
+            font-weight: 800;
+            color: #0f172a;
         }
 
-        .stat-label {
-            font-size: 11px;
-            color: #6c757d;
-            font-weight: 500;
+        .stat-card.destaque-sucesso .stat-num { color: #16a34a; }
+        .stat-card.destaque-standby .stat-num { color: #d97706; }
+
+        .stat-desc {
+            font-size: 10.5px;
+            color: #64748b;
+            font-weight: 600;
             margin-top: 2px;
         }
 
-        /* TABELA DE BATIDAS */
-        .table-section {
-            margin-bottom: 30px;
+        /* QUADRO DE IDENTIFICAÇÃO DO SERVIDOR */
+        .servidor-box {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-left: 4px solid #2563eb;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin-bottom: 14px;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 12px;
         }
 
-        .section-title {
+        .servidor-nome-linha {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .servidor-doc-linha {
+            font-size: 11px;
+            color: #475569;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .servidor-periodo-linha {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .servidor-periodo-linha .mes-ref {
             font-size: 14px;
             font-weight: 700;
-            color: #0d1b2a;
-            margin-bottom: 10px;
+            color: #1e40af;
+        }
+
+        .servidor-periodo-linha .datas-ref {
+            font-size: 10.5px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        /* MINI BARRA DE INDICADORES DO SERVIDOR */
+        .mini-resumo-servidor {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px 14px;
+            margin-bottom: 14px;
+            font-size: 11px;
+        }
+
+        .mini-resumo-items {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .mini-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-weight: 600;
+        }
+
+        /* LEGENDA DE CORES DAS BATIDAS */
+        .legenda-batidas {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 10.5px;
+            color: #475569;
+        }
+
+        .legenda-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* TABELA MENSAL DE PONTO */
+        .tabela-container {
+            margin-bottom: 16px;
+            overflow-x: auto;
+        }
+
+        .tabela-mes {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            text-align: center;
+        }
+
+        .tabela-mes th {
+            background-color: #0f172a;
+            color: #ffffff;
+            font-weight: 600;
+            padding: 6px 4px;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.3px;
+            border: 1px solid #1e293b;
+            white-space: nowrap;
+        }
+
+        .tabela-mes td {
+            padding: 4px 4px;
+            border: 1px solid #e2e8f0;
+            color: #1e293b;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .tabela-mes tr:nth-child(even) td {
+            background-color: #fafbfc;
+        }
+
+        /* DIAS ESPECIAIS */
+        tr.linha-sabado td {
+            background-color: #f8fafc !important;
+        }
+
+        tr.linha-domingo td {
+            background-color: #fef2f2 !important;
+        }
+
+        tr.linha-feriado td {
+            background-color: #fefce8 !important;
+        }
+
+        /* BADGES DE DIA */
+        .badge-dia {
+            display: inline-block;
+            font-weight: 700;
+            font-size: 9.5px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+
+        .badge-dia.util { color: #475569; background: #e2e8f0; }
+        .badge-dia.sab { color: #b45309; background: #fef3c7; }
+        .badge-dia.dom { color: #b91c1c; background: #fee2e2; }
+        .badge-dia.feriado { color: #854d0e; background: #fef08a; }
+
+        /* BADGES DE BATIDA (INDICAÇÃO DE NOVA VS JÁ EXISTENTE) */
+        .badge-batida {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 10.5px;
+            font-weight: 700;
+            border: 1px solid transparent;
+        }
+
+        /* 🟢 NOVA BATIDA (Lançada neste último envio) */
+        .badge-batida.batida-nova {
+            background-color: #dcfce7;
+            color: #15803d;
+            border-color: #86efac;
+        }
+
+        .badge-batida.batida-nova .tag-nova {
+            font-size: 7.5px;
+            background: #16a34a;
+            color: #ffffff;
+            padding: 0 2px;
+            border-radius: 2px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            margin-left: 2px;
+            letter-spacing: 0.2px;
+        }
+
+        /* ⚪ BATIDA EXISTENTE (Já constava no sistema antes do envio) */
+        .badge-batida.batida-existente {
+            background-color: #f1f5f9;
+            color: #475569;
+            border-color: #cbd5e1;
+        }
+
+        .sem-batida {
+            color: #cbd5e1;
+            font-size: 11px;
+            font-weight: normal;
+        }
+
+        /* BADGE DE SITUAÇÃO / OCORRÊNCIA DO DIA */
+        .badge-sit {
+            display: inline-block;
+            font-size: 9.5px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+
+        .badge-sit.normal { color: #166534; background: #dcfce7; }
+        .badge-sit.sabado { color: #92400e; background: #fef3c7; }
+        .badge-sit.domingo { color: #991b1b; background: #fee2e2; }
+        .badge-sit.feriado { color: #854d0e; background: #fef08a; font-weight: 700; }
+        .badge-sit.folga { color: #64748b; background: #f1f5f9; }
+
+        /* SEÇÃO DE ASSINATURAS */
+        .secao-assinaturas {
+            margin-top: 18px;
+            padding-top: 14px;
+            border-top: 1px dashed #cbd5e1;
+        }
+
+        .declaracao-texto {
+            font-size: 10px;
+            color: #475569;
+            text-align: center;
+            font-style: italic;
+            margin-bottom: 24px;
+        }
+
+        .grid-assinaturas {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
+        }
+
+        .caixa-assinatura {
+            text-align: center;
+        }
+
+        .linha-assinatura {
+            border-top: 1px solid #334155;
+            padding-top: 5px;
+            margin-bottom: 2px;
+            font-weight: 700;
+            font-size: 11px;
+            color: #0f172a;
+        }
+
+        .cargo-assinatura {
+            font-size: 10px;
+            color: #64748b;
+        }
+
+        .rodape-documento {
+            margin-top: 14px;
+            font-size: 9px;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 6px;
+        }
+
+        /* TABELA DE STANDBY NA CAPA */
+        .standby-box {
+            margin-top: 20px;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            background: #fffdf5;
+            padding: 14px 16px;
+        }
+
+        .standby-titulo {
+            color: #92400e;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 8px;
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
 
-        table {
+        /* SUMÁRIO DE SERVIDORES NA CAPA */
+        .sumario-box {
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: #ffffff;
+            padding: 14px 16px;
+        }
+
+        .sumario-titulo {
+            font-size: 13px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 10px;
+        }
+
+        .tabela-sumario {
             width: 100%;
             border-collapse: collapse;
             font-size: 11px;
-            table-layout: auto;
         }
 
-        th {
-            background-color: #0d1b2a;
-            color: #ffffff;
+        .tabela-sumario th {
+            background: #f1f5f9;
+            color: #334155;
             font-weight: 600;
+            padding: 6px 8px;
             text-align: left;
-            padding: 8px 8px;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
+            border-bottom: 2px solid #cbd5e1;
         }
 
-        td {
-            padding: 7px 8px;
-            border-bottom: 1px solid #e9ecef;
-            color: #333;
-            vertical-align: middle;
+        .tabela-sumario td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #f1f5f9;
         }
 
-        .col-center { text-align: center; }
-        .col-nowrap { white-space: nowrap; }
-        .col-servidor { 
-            white-space: normal;
-            font-weight: 600;
-            color: #1e293b;
+        .tabela-sumario tr:hover td {
+            background: #f8fafc;
         }
 
-        tr:nth-child(even) td {
-            background-color: #f8f9fa;
-        }
-
-        .badge-status {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: 600;
-        }
-
-        .badge-success {
-            background-color: #d1e7dd;
-            color: #0f5132;
-        }
-
-        .badge-existente {
-            background-color: #e2e3e5;
-            color: #41464b;
-        }
-
-        /* ASSINATURA */
-        .signatures {
-            margin-top: 40px;
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 40px;
-            padding-top: 20px;
-        }
-
-        .sig-box {
-            text-align: center;
-            border-top: 1px solid #495057;
-            padding-top: 8px;
-            font-size: 12px;
-        }
-
-        .sig-role {
-            font-size: 11px;
-            color: #6c757d;
-        }
-
-        /* BOTÕES DE AÇÃO FLUTUANTES NA TELA */
-        .actions-bar {
-            position: fixed;
-            bottom: 25px;
-            right: 25px;
-            display: flex;
-            gap: 12px;
-            z-index: 100;
-        }
-
-        .btn-action {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
-            border-radius: 30px;
-            font-size: 14px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            transition: all 0.2s;
-            text-decoration: none;
-        }
-
-        .btn-print {
-            background: #1a73e8;
-            color: #ffffff;
-        }
-
-        .btn-print:hover {
-            background: #1557b0;
-            transform: translateY(-2px);
-        }
-
-        .btn-back {
-            background: #ffffff;
-            color: #333333;
-            border: 1px solid #ced4da;
-        }
-
-        .btn-back:hover {
-            background: #f8f9fa;
-        }
-
-        /* REGRAS PARA IMPRESSÃO EM PDF */
+        /* ========================================================
+           REGRAS DE IMPRESSÃO / SALVAR COMO PDF (A4)
+           ======================================================== */
         @media print {
             body {
-                background: #ffffff;
-                padding: 0;
+                background: #ffffff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                color: #000000 !important;
             }
 
-            .document-container {
-                box-shadow: none;
-                border: none;
-                padding: 0;
-                max-width: 100%;
+            @page {
+                size: A4 portrait;
+                margin: 6mm 8mm 6mm 8mm;
             }
 
             .actions-bar {
                 display: none !important;
             }
 
-            th {
-                background-color: #212529 !important;
+            .page-container {
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            .folha-rosto {
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                min-height: 96vh;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            }
+
+            .folha-servidor {
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                page-break-before: always !important;
+                break-before: page !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                display: block !important;
+                min-height: auto !important;
+            }
+
+            .folha-servidor:last-child {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            .tabela-mes {
+                font-size: 8.5pt !important;
+                page-break-inside: auto !important;
+                break-inside: auto !important;
+            }
+
+            .tabela-mes thead {
+                display: table-header-group !important;
+            }
+
+            .tabela-mes tr {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            .servidor-box, .mini-resumo-servidor, .caixa-assinatura, .rodape-documento {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            .tabela-mes th {
+                padding: 2.2px 3px !important;
+                font-size: 7.5pt !important;
+                background-color: #0f172a !important;
                 color: #ffffff !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
 
-            .info-grid, .stat-card.success, tr:nth-child(even) td {
+            .tabela-mes td {
+                padding: 1.6px 2px !important;
+                font-size: 8pt !important;
+                line-height: 1.12 !important;
+            }
+
+            .badge-batida {
+                font-size: 8pt !important;
+                padding: 1px 3px !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
+            }
+
+            .badge-batida.batida-nova {
+                background-color: #dcfce7 !important;
+                color: #15803d !important;
+                border-color: #86efac !important;
+            }
+
+            .badge-batida.batida-existente {
+                background-color: #f1f5f9 !important;
+                color: #475569 !important;
+                border-color: #cbd5e1 !important;
+            }
+
+            .badge-dia, .badge-sit {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .linha-sabado td, .linha-domingo td, .linha-feriado td {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .servidor-box, .info-grid, .stat-card {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .badge-numero-pagina {
+                top: 0 !important;
+                right: 0 !important;
+                background: #0f172a !important;
+                color: #ffffff !important;
+                font-size: 8pt !important;
+                padding: 2px 8px !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
         }
     </style>
 </head>
 <body>
 
+<!-- BARRA DE AÇÕES FLUTUANTE (SOMENTE NA TELA) -->
 <div class="actions-bar">
-    <button onclick="window.close()" class="btn-action btn-back" title="Fechar esta aba do comprovante">✕ Fechar Aba</button>
-    <button onclick="window.print()" class="btn-action btn-print">🖨️ Salvar como PDF / Imprimir</button>
+    <div class="info-label-bar">
+        📄 Lote: <strong>{{ resumo.envio_id }}</strong> &bull; Total: <strong>{{ resumo.total_paginas }} páginas</strong> ({{ resumo.folhas_funcionarios|length }} servidor{% if resumo.folhas_funcionarios|length != 1 %}es com batidas{% else %} com batidas{% endif %})
+    </div>
+    {% if resumo.folhas_funcionarios %}
+    <select class="select-servidor-jump" onchange="irParaServidor(this.value)" title="Ir diretamente para a folha do colaborador">
+        <option value="capa">Página 1 (Capa Oficial)</option>
+        {% for f in resumo.folhas_funcionarios %}
+        <option value="servidor-{{ forloop.counter }}">Pág {{ forloop.counter|add:1 }}. {{ f.nome|truncatechars:22 }} (Matr. {{ f.matricula }})</option>
+        {% endfor %}
+    </select>
+    {% endif %}
+    <button onclick="window.close()" class="btn-action btn-back" title="Fechar visualização">✕ Fechar</button>
+    <button onclick="window.print()" class="btn-action btn-print" title="Salvar em PDF ou imprimir">🖨️ Salvar em PDF / Imprimir</button>
 </div>
 
-<div class="document-container">
-    <div class="header">
-        <h1>Prefeitura Municipal de Taquarituba</h1>
-        <h2>Departamento de Recursos Humanos • Gestão de Ponto Eletrônico</h2>
-        <div class="subtitle">Comprovante de Transmissão de Batidas ao SIPWebservices Fiorilli</div>
-        <div class="protocol-badge">PROTOCOLO: {{ resumo.envio_id|upper }}</div>
+<div class="page-container">
+
+    <!-- ========================================================
+         FOLHA 1: CAPA OFICIAL E PROTOCOLO GERAL DO LOTE
+         ======================================================== -->
+    <div class="folha-rosto" id="folha-capa">
+        <div class="badge-numero-pagina">Página 1 de {{ resumo.total_paginas }}</div>
+        <div>
+            <div class="header-oficial">
+                <h1>Prefeitura Municipal de Taquarituba</h1>
+                <h2>Secretaria de Administração • Departamento de Recursos Humanos</h2>
+                <div class="subtitulo">Protocolo de Transmissão e Processamento de Ponto Eletrônico</div>
+                <div class="protocolo-tag">PROTOCOLO OFICIAL: {{ resumo.envio_id|upper }}</div>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Período de Apuração</span>
+                    <span class="info-val">📅 {{ resumo.data_inicio_fmt }} até {{ resumo.data_fim_fmt }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Data e Hora do Envio</span>
+                    <span class="info-val">🕒 {{ resumo.data_envio }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Operador Responsável</span>
+                    <span class="info-val">👤 {{ resumo.operador }} (Fiorilli SIP)</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Arquivo de Origem</span>
+                    <span class="info-val">📁 {{ resumo.nome_arquivo }}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Entidade Municipal</span>
+                    <span class="info-val">🏢 Código {{ resumo.entidade|default:'001' }} - PM Taquarituba</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Integração SIPWebservices</span>
+                    <span class="info-val">🟢 Sincronizado com o SIP Fiorilli (Pré-conferência e POST /batidas)</span>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card destaque-sucesso">
+                    <div class="stat-num">{{ resumo.total_enviadas_sucesso|default:0 }}</div>
+                    <div class="stat-desc">Batidas Transmitidas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-num" style="color: #64748b;">{{ resumo.total_ja_existentes|default:0 }}</div>
+                    <div class="stat-desc">Já Existiam no SIP</div>
+                </div>
+                {% if resumo.total_standby %}
+                <div class="stat-card destaque-standby">
+                    <div class="stat-num">{{ resumo.total_standby }}</div>
+                    <div class="stat-desc">Retidas em Standby</div>
+                </div>
+                {% else %}
+                <div class="stat-card">
+                    <div class="stat-num">{{ resumo.total_batidas_periodo|default:0 }}</div>
+                    <div class="stat-desc">Total no Arquivo</div>
+                </div>
+                {% endif %}
+                <div class="stat-card">
+                    <div class="stat-num" style="color: #2563eb;">{{ resumo.total_servidores|default:resumo.folhas_funcionarios|length }}</div>
+                    <div class="stat-desc">Servidores Atendidos</div>
+                </div>
+            </div>
+
+            <!-- INCONSISTÊNCIAS / STANDBY SE HOUVER -->
+            {% if resumo.lista_inconsistencias %}
+            <div class="standby-box">
+                <div class="standby-titulo">
+                    <span>⚠️ Batidas com Inconsistência de Cadastro (Retidas em Standby)</span>
+                    <span style="font-size: 11px; font-weight: normal; color: #b45309;">Não enviadas ao SIP • Conferir no RH</span>
+                </div>
+                <table class="tabela-mes" style="font-size: 10px; margin-top: 6px;">
+                    <thead>
+                        <tr style="background: #fef3c7;">
+                            <th style="width: 30px; color: #92400e;">#</th>
+                            <th style="width: 80px; color: #92400e;">Data</th>
+                            <th style="width: 70px; color: #92400e;">Hora</th>
+                            <th style="width: 120px; color: #92400e;">Identificador Lido</th>
+                            <th style="color: #92400e;">Nome no Arquivo</th>
+                            <th style="color: #92400e;">Motivo da Inconsistência</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for inc in resumo.lista_inconsistencias %}
+                        <tr>
+                            <td>{{ forloop.counter }}</td>
+                            <td><strong>{{ inc.data }}</strong></td>
+                            <td>{{ inc.hora }}</td>
+                            <td style="font-family: monospace; color: #b91c1c; font-weight: 600;">{{ inc.identificador }}</td>
+                            <td>{{ inc.nome|default:'Não Identificado' }}</td>
+                            <td style="color: #991b1b; text-align: left;">{{ inc.motivo }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- SUMÁRIO DOS SERVIDORES CONTEMPLADOS NESTE LOTE -->
+            {% if resumo.folhas_funcionarios %}
+            <div class="sumario-box">
+                <div class="sumario-titulo">
+                    📋 Relação de Servidores e Folhas Individuais Emitidas ({{ resumo.folhas_funcionarios|length }})
+                </div>
+                <table class="tabela-sumario">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px; text-align: center;">Folha</th>
+                            <th style="width: 90px;">Matrícula</th>
+                            <th>Servidor</th>
+                            <th style="width: 120px;">CPF</th>
+                            <th style="width: 90px; text-align: center;">Total Batidas</th>
+                            <th style="width: 90px; text-align: center;">Novas</th>
+                            <th style="width: 90px; text-align: center;">Preexistentes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for f in resumo.folhas_funcionarios %}
+                        <tr>
+                            <td style="text-align: center; font-weight: 700; color: #2563eb;">{{ forloop.counter }}</td>
+                            <td style="font-family: monospace; font-weight: 600;">{{ f.matricula }}</td>
+                            <td>
+                                <a href="#servidor-{{ forloop.counter }}" style="color: #0f172a; text-decoration: none; font-weight: 600;">
+                                    {{ f.nome }}
+                                </a>
+                            </td>
+                            <td style="font-family: monospace; color: #64748b;">{{ f.cpf }}</td>
+                            <td style="text-align: center; font-weight: 700;">{{ f.total_batidas }}</td>
+                            <td style="text-align: center;">
+                                {% if f.total_novas %}
+                                <span style="color: #16a34a; font-weight: 700;">🟢 {{ f.total_novas }}</span>
+                                {% else %}
+                                <span style="color: #94a3b8;">0</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: center; color: #64748b;">{{ f.total_existentes }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="secao-assinaturas">
+            <div class="grid-assinaturas">
+                <div class="caixa-assinatura">
+                    <div class="linha-assinatura">{{ resumo.operador }}</div>
+                    <div class="cargo-assinatura">Operador Responsável pelo Lançamento</div>
+                </div>
+                <div class="caixa-assinatura">
+                    <div class="linha-assinatura">Departamento de Recursos Humanos</div>
+                    <div class="cargo-assinatura">Prefeitura Municipal de Taquarituba</div>
+                </div>
+            </div>
+            <div class="rodape-documento">
+                <span>Protocolo: {{ resumo.envio_id }} • Gerado em {{ resumo.data_envio }}</span>
+                <span style="font-weight: 700; color: #0f172a;">PÁGINA 1 DE {{ resumo.total_paginas }} (Capa Geral)</span>
+            </div>
+        </div>
     </div>
 
-    <div class="info-grid">
-        <div class="info-item">
-            <span class="info-label">Período de Apuração</span>
-            <span class="info-value">📅 {{ resumo.data_inicio_fmt }} até {{ resumo.data_fim_fmt }}</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Data e Hora da Transmissão</span>
-            <span class="info-value">🕒 {{ resumo.data_envio }}</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Operador Responsável</span>
-            <span class="info-value">👤 {{ resumo.operador }} (Fiorilli SIP)</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Arquivo de Origem</span>
-            <span class="info-value">📁 {{ resumo.nome_arquivo }}</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Entidade Fiorilli</span>
-            <span class="info-value">🏢 Código {{ resumo.entidade|default:'001' }} - PM Taquarituba</span>
-        </div>
-        <div class="info-item">
-            <span class="info-label">Status da Conexão</span>
-            <span class="info-value">🟢 Integrado via API (POST /batidas)</span>
-        </div>
-    </div>
+    <!-- ========================================================
+         FOLHAS INDIVIDUAIS POR FUNCIONÁRIO (1 FOLHA POR SERVIDOR)
+         COM TODOS OS DIAS DO MÊS E INDICAÇÃO DE BATIDAS NOVAS/EXISTENTES
+         ======================================================== -->
+    {% for folha in resumo.folhas_funcionarios %}
+    <div class="folha-servidor" id="servidor-{{ forloop.counter }}">
+        <div class="badge-numero-pagina">Página {{ forloop.counter|add:1 }} de {{ resumo.total_paginas }}</div>
+        <div>
+            <!-- CABEÇALHO DO SERVIDOR -->
+            <div class="header-oficial">
+                <h1>Prefeitura Municipal de Taquarituba</h1>
+                <h2>Secretaria de Administração • Departamento de Recursos Humanos</h2>
+                <div class="subtitulo">Comprovante Mensal Individual de Batidas de Ponto Eletrônico</div>
+                <div class="protocolo-tag">
+                    PROTOCOLO: {{ resumo.envio_id|upper }} &bull; OPERADOR: {{ resumo.operador }} &bull; EMISSÃO: {{ resumo.data_envio }}
+                </div>
+            </div>
 
-    <div class="stats-cards">
-        <div class="stat-card success">
-            <div class="stat-num">{{ resumo.total_enviadas_sucesso|default:0 }}</div>
-            <div class="stat-label">Batidas Transmitidas</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-num" style="color: #6c757d;">{{ resumo.total_ja_existentes|default:0 }}</div>
-            <div class="stat-label">Já Existentes no SIP</div>
-        </div>
-        {% if resumo.total_standby %}
-        <div class="stat-card" style="border-left: 4px solid #d97706; background: #fffbeb;">
-            <div class="stat-num" style="color: #d97706;">{{ resumo.total_standby }}</div>
-            <div class="stat-label" style="color: #b45309; font-weight: 600;">Retidas em Standby</div>
-        </div>
-        {% endif %}
-        <div class="stat-card">
-            <div class="stat-num" style="color: #0d1b2a;">{{ resumo.total_batidas_periodo|default:0 }}</div>
-            <div class="stat-label">Total no Arquivo</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-num" style="color: #0d6efd;">{{ resumo.total_servidores|default:0 }}</div>
-            <div class="stat-label">Servidores Atendidos</div>
-        </div>
-    </div>
-
-    <!-- SEÇÃO DE INCONSISTÊNCIAS E STANDBY (SE HOUVER) -->
-    {% if resumo.lista_inconsistencias %}
-    <div class="table-section" style="margin-bottom: 28px; border: 1px solid #fde68a; border-radius: 6px; padding: 14px 16px; background: #fffdf5;">
-        <div class="section-title" style="color: #92400e; border-bottom-color: #fde68a;">
-            <span>⚠️ Inconsistências Detectadas & Batidas Retidas em Standby</span>
-            <span style="font-size: 11px; font-weight: 600; color: #b45309;">(NÃO foram transmitidas ao SIP • Para conferência no relógio/RH)</span>
-        </div>
-
-        <table style="margin-top: 8px;">
-            <thead>
-                <tr style="background: #fef3c7;">
-                    <th class="col-center" style="width: 35px; color: #92400e;">#</th>
-                    <th class="col-nowrap" style="width: 90px; color: #92400e;">Data</th>
-                    <th class="col-nowrap" style="width: 75px; color: #92400e;">Hora</th>
-                    <th class="col-nowrap" style="width: 140px; color: #92400e;">Identificador Lido</th>
-                    <th style="color: #92400e;">Nome no Arquivo</th>
-                    <th class="col-nowrap" style="width: 110px; color: #92400e;">Relógio</th>
-                    <th style="color: #92400e;">Motivo da Inconsistência</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for inc in resumo.lista_inconsistencias %}
-                <tr>
-                    <td class="col-center" style="color: #b45309; font-weight: 600;">{{ forloop.counter }}</td>
-                    <td class="col-nowrap"><strong>{{ inc.data }}</strong></td>
-                    <td class="col-nowrap">{{ inc.hora }}</td>
-                    <td class="col-nowrap" style="font-family: monospace; font-size: 11px; font-weight: 600; color: #b91c1c;">{{ inc.identificador }}</td>
-                    <td>{{ inc.nome|default:'Não Identificado' }}</td>
-                    <td class="col-nowrap" style="font-size: 11px;">📟 {{ inc.relogio }}</td>
-                    <td style="color: #991b1b; font-size: 11px; font-weight: 500;">{{ inc.motivo }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <div style="margin-top: 10px; font-size: 11px; color: #78350f; line-height: 1.4;">
-            ℹ️ <strong>Orientação ao Operador:</strong> As marcações acima foram retidas com segurança na Fila de Standby do sistema. Verifique no relógio de ponto físico se o colaborador está com PIS/CPF digitado incorretamente ou se é um novo admitido que ainda não foi cadastrado no SIP. No menu do sistema, acesse <strong>Standby / Inconsistências</strong> para vincular ao servidor correto ou ignorar caso seja teste.
-        </div>
-    </div>
-    {% endif %}
-
-    <div class="table-section">
-        <div class="section-title">
-            <span>Relação de Batidas Processadas</span>
-            <span style="font-size: 11px; font-weight: normal; color: #6c757d;">Marcações vinculadas, transmitidas ou já existentes no lançamento</span>
-        </div>
-
-        <table>
-            <thead>
-                <tr>
-                    <th class="col-center" style="width: 40px;">#</th>
-                    <th class="col-nowrap" style="width: 100px;">Data</th>
-                    <th class="col-nowrap" style="width: 80px;">Hora</th>
-                    <th class="col-nowrap" style="width: 120px;">Matrícula / Reg.</th>
-                    <th class="col-nowrap" style="width: 150px;">Identificador (CPF/PIS)</th>
-                    <th class="col-servidor">Servidor</th>
-                    <th class="col-center col-nowrap" style="width: 130px;">Status do Lançamento</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for b in resumo.lista_batidas %}
-                <tr>
-                    <td class="col-center">{{ forloop.counter }}</td>
-                    <td class="col-nowrap"><strong>{{ b.data }}</strong></td>
-                    <td class="col-nowrap">{{ b.hora }}</td>
-                    <td class="col-nowrap">{{ b.registro|default:'-' }}</td>
-                    <td class="col-nowrap" style="font-family: monospace; font-size: 11px;">{{ b.identificador }}</td>
-                    <td class="col-servidor">{{ b.nome|default:'Servidor Localizado' }}</td>
-                    <td class="col-center col-nowrap">
-                        {% if b.status == 'SUCESSO' %}
-                            <span class="badge-status badge-success">✅ Transmitida</span>
-                        {% elif b.status == 'EXISTENTE' %}
-                            <span class="badge-status badge-existente">⚪ Já no Lançamento</span>
-                        {% else %}
-                            <span class="badge-status badge-success">✅ Registrada</span>
+            <!-- QUADRO DE DADOS DO SERVIDOR -->
+            <div class="servidor-box">
+                <div>
+                    <div class="servidor-nome-linha">👤 {{ folha.nome }}</div>
+                    <div class="servidor-doc-linha">
+                        <span><strong>Matrícula:</strong> {{ folha.matricula }}</span>
+                        <span><strong>CPF:</strong> {{ folha.cpf }}</span>
+                        {% if folha.pis and folha.pis != '-' %}
+                        <span><strong>PIS:</strong> {{ folha.pis }}</span>
                         {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="7" style="text-align: center; padding: 20px; color: #6c757d;">
-                        Nenhuma batida individual transmitida para listar.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+                        <span><strong>Lotação:</strong> {{ folha.departamento }}</span>
+                    </div>
+                </div>
+                <div class="servidor-periodo-linha">
+                    <div class="mes-ref">{{ folha.mes_ano_rotulo }}</div>
+                    <div class="datas-ref">Período: {{ folha.periodo_extenso }}</div>
+                </div>
+            </div>
 
-    <div class="signatures">
-        <div class="sig-box">
-            <strong>{{ resumo.operador }}</strong>
-            <div class="sig-role">Operador Responsável pelo Lançamento</div>
+            <!-- MINI RESUMO E LEGENDA DE CORES -->
+            <div class="mini-resumo-servidor">
+                <div class="mini-resumo-items">
+                    <span class="mini-item" title="Total de batidas registradas no mês">
+                        📊 Total: <strong>{{ folha.total_batidas }} batidas</strong>
+                    </span>
+                    <span class="mini-item" style="color: #15803d;" title="Batidas transmitidas neste lançamento">
+                        🟢 Novas no Lote: <strong>{{ folha.total_novas }}</strong>
+                    </span>
+                    <span class="mini-item" style="color: #475569;" title="Batidas que já constavam previamente no sistema">
+                        ⚪ Preexistentes: <strong>{{ folha.total_existentes }}</strong>
+                    </span>
+                    <span class="mini-item" title="Dias com marcação de ponto">
+                        📅 Dias Trabalhados: <strong>{{ folha.dias_trabalhados }}</strong>
+                    </span>
+                </div>
+                <div class="legenda-batidas">
+                    <span class="legenda-item">
+                        <span class="badge-batida batida-nova" style="font-size: 9px; padding: 1px 3px;">08:00<span class="tag-nova">NOVA</span></span>
+                        <span>Transmitida neste lote</span>
+                    </span>
+                    <span class="legenda-item">
+                        <span class="badge-batida batida-existente" style="font-size: 9px; padding: 1px 3px;">08:00</span>
+                        <span>Já no sistema</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- TABELA COM TODOS OS DIAS DO MÊS (1 A 28/29/30/31) -->
+            <div class="tabela-container">
+                <table class="tabela-mes">
+                    <thead>
+                        <tr>
+                            <th style="width: 65px;">Data</th>
+                            <th style="width: 38px;">Dia</th>
+                            <th style="width: 80px;">Entrada 1</th>
+                            <th style="width: 80px;">Saída 1</th>
+                            <th style="width: 80px;">Entrada 2</th>
+                            <th style="width: 80px;">Saída 2</th>
+                            <th style="width: 80px;">Entrada 3</th>
+                            <th style="width: 80px;">Saída 3</th>
+                            <th style="width: 130px;">Ocorrência / Situação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in folha.dias %}
+                        <tr class="{% if d.is_feriado %}linha-feriado{% elif d.is_domingo %}linha-domingo{% elif d.is_sabado %}linha-sabado{% endif %}">
+                            <!-- DATA -->
+                            <td style="font-weight: 600; text-align: left; padding-left: 6px;">
+                                {{ d.data_fmt }}
+                            </td>
+
+                            <!-- DIA DA SEMANA -->
+                            <td>
+                                {% if d.is_feriado %}
+                                    <span class="badge-dia feriado">{{ d.dia_semana }}</span>
+                                {% elif d.is_domingo %}
+                                    <span class="badge-dia dom">{{ d.dia_semana }}</span>
+                                {% elif d.is_sabado %}
+                                    <span class="badge-dia sab">{{ d.dia_semana }}</span>
+                                {% else %}
+                                    <span class="badge-dia util">{{ d.dia_semana }}</span>
+                                {% endif %}
+                            </td>
+
+                            <!-- ENTRADA 1 -->
+                            <td>
+                                {% if d.e1.presente %}
+                                    <span class="badge-batida {% if d.e1.is_nova %}batida-nova{% else %}batida-existente{% endif %}" title="{{ d.e1.rotulo }}">
+                                        {{ d.e1.hora }}{% if d.e1.is_nova %}<span class="tag-nova">NOVA</span>{% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="sem-batida">-</span>
+                                {% endif %}
+                            </td>
+
+                            <!-- SAÍDA 1 -->
+                            <td>
+                                {% if d.s1.presente %}
+                                    <span class="badge-batida {% if d.s1.is_nova %}batida-nova{% else %}batida-existente{% endif %}" title="{{ d.s1.rotulo }}">
+                                        {{ d.s1.hora }}{% if d.s1.is_nova %}<span class="tag-nova">NOVA</span>{% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="sem-batida">-</span>
+                                {% endif %}
+                            </td>
+
+                            <!-- ENTRADA 2 -->
+                            <td>
+                                {% if d.e2.presente %}
+                                    <span class="badge-batida {% if d.e2.is_nova %}batida-nova{% else %}batida-existente{% endif %}" title="{{ d.e2.rotulo }}">
+                                        {{ d.e2.hora }}{% if d.e2.is_nova %}<span class="tag-nova">NOVA</span>{% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="sem-batida">-</span>
+                                {% endif %}
+                            </td>
+
+                            <!-- SAÍDA 2 -->
+                            <td>
+                                {% if d.s2.presente %}
+                                    <span class="badge-batida {% if d.s2.is_nova %}batida-nova{% else %}batida-existente{% endif %}" title="{{ d.s2.rotulo }}">
+                                        {{ d.s2.hora }}{% if d.s2.is_nova %}<span class="tag-nova">NOVA</span>{% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="sem-batida">-</span>
+                                {% endif %}
+                            </td>
+
+                            <!-- ENTRADA 3 -->
+                            <td>
+                                {% if d.e3.presente %}
+                                    <span class="badge-batida {% if d.e3.is_nova %}batida-nova{% else %}batida-existente{% endif %}" title="{{ d.e3.rotulo }}">
+                                        {{ d.e3.hora }}{% if d.e3.is_nova %}<span class="tag-nova">NOVA</span>{% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="sem-batida">-</span>
+                                {% endif %}
+                            </td>
+
+                            <!-- SAÍDA 3 -->
+                            <td>
+                                {% if d.s3.presente %}
+                                    <span class="badge-batida {% if d.s3.is_nova %}batida-nova{% else %}batida-existente{% endif %}" title="{{ d.s3.rotulo }}">
+                                        {{ d.s3.hora }}{% if d.s3.is_nova %}<span class="tag-nova">NOVA</span>{% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="sem-batida">-</span>
+                                {% endif %}
+                            </td>
+
+                            <!-- OCORRÊNCIA / STATUS DO DIA -->
+                            <td style="text-align: left; padding-left: 6px;">
+                                {% if d.is_feriado %}
+                                    <span class="badge-sit feriado">🎉 {{ d.nome_feriado }}</span>
+                                {% elif d.is_domingo %}
+                                    <span class="badge-sit domingo">DSR - Domingo</span>
+                                {% elif d.is_sabado %}
+                                    <span class="badge-sit sabado">DSR - Sábado</span>
+                                {% elif d.qtd_batidas > 0 %}
+                                    <span class="badge-sit normal">✅ {{ d.qtd_batidas }} batida(s)</span>
+                                {% else %}
+                                    <span class="badge-sit folga">Folga / Sem marcação</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div class="sig-box">
-            <strong>Setor de Recursos Humanos / Ponto</strong>
-            <div class="sig-role">Prefeitura Municipal de Taquarituba</div>
+
+        <!-- SEÇÃO DE ASSINATURAS DO SERVIDOR -->
+        <div class="secao-assinaturas">
+            <div class="declaracao-texto">
+                "Reconheço a exatidão das marcações de ponto acima descritas referentes ao período de apuração indicado."
+            </div>
+            <div class="grid-assinaturas">
+                <div class="caixa-assinatura">
+                    <div class="linha-assinatura">{{ folha.nome }}</div>
+                    <div class="cargo-assinatura">Assinatura do Servidor &bull; Matrícula: {{ folha.matricula }}</div>
+                </div>
+                <div class="caixa-assinatura">
+                    <div class="linha-assinatura">Chefia Imediata / Recursos Humanos</div>
+                    <div class="cargo-assinatura">Visto e Conferência &bull; PM Taquarituba - SP</div>
+                </div>
+            </div>
+            <div class="rodape-documento">
+                <span>Protocolo: {{ resumo.envio_id }} &bull; Operador: {{ resumo.operador }} &bull; SIPWebservices Fiorilli</span>
+                <span style="font-weight: 700; color: #0f172a;">PÁGINA {{ forloop.counter|add:1 }} DE {{ resumo.total_paginas }} &bull; Folha {{ forloop.counter }} de {{ resumo.folhas_funcionarios|length }} ({{ folha.nome|truncatechars:30 }})</span>
+            </div>
         </div>
     </div>
+    {% empty %}
+    <!-- CASO NÃO HAJA FOLHAS GERADAS (EX: COMPROVANTE SEM SERVIDORES) -->
+    <div class="folha-servidor">
+        <div class="header-oficial">
+            <h1>Prefeitura Municipal de Taquarituba</h1>
+            <h2>Nenhuma folha individual localizada para este envio</h2>
+        </div>
+        <p style="text-align: center; color: #64748b; padding: 30px;">
+            Não foi possível identificar servidores associados a este envio para gerar as folhas mensais individuais.
+        </p>
+    </div>
+    {% endfor %}
+
 </div>
 
 <script>
-    // Se o usuário clicar para imprimir ou atalho Ctrl+P
+    function irParaServidor(idAlvo) {
+        if (idAlvo === 'capa') {
+            document.getElementById('folha-capa').scrollIntoView({ behavior: 'smooth' });
+        } else {
+            const el = document.getElementById(idAlvo);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    }
+
+    // Atalho Ctrl+P para imprimir ou salvar como PDF
     window.addEventListener('keydown', function(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
             e.preventDefault();

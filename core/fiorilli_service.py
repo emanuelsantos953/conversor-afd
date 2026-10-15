@@ -267,3 +267,46 @@ class FiorilliService:
                 return False, [], f"HTTP {resp.getcode()}"
         except Exception as e:
             return False, [], str(e)
+
+    def consultar_batidas_servidor(
+        self,
+        registro: str,
+        quantidade: int = 60,
+        identificador_alternativo: str = "",
+        nome_alternativo: str = ""
+    ) -> Tuple[bool, List[Dict[str, Any]], str]:
+        """
+        Consulta as últimas batidas do trabalhador diretamente no SIP Fiorilli
+        através do endpoint GET /batidas/entidade/{entidade}/registro/{reg}/quantidadeRegistro/{qtd}.
+        Retorna (sucesso, lista_batidas, mensagem).
+        """
+        if not self.auth_token:
+            return False, [], "Operador não autenticado no SIP Fiorilli."
+
+        reg_efetivo = self.resolver_registro_sip(
+            identificador=identificador_alternativo or registro,
+            matricula=registro,
+            nome=nome_alternativo
+        )
+        if not reg_efetivo:
+            reg_efetivo = str(registro).zfill(6)
+
+        url = f"{self.base_url}/batidas/entidade/{self.entidade}/registro/{reg_efetivo}/quantidadeRegistro/{quantidade}"
+        req = urllib.request.Request(url, headers=self._get_headers())
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                if resp.getcode() == 200:
+                    raw_data = resp.read().decode('utf-8')
+                    data = json.loads(raw_data)
+                    itens = data if isinstance(data, list) else (data.get("batidas", []) if isinstance(data, dict) else [])
+                    return True, itens, "OK"
+                elif resp.getcode() == 204:
+                    return True, [], "Sem batidas registradas."
+                return False, [], f"HTTP {resp.getcode()}"
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return True, [], "Nenhuma batida encontrada."
+            return False, [], f"Erro HTTP {e.code}"
+        except Exception as e:
+            return False, [], str(e)
+
